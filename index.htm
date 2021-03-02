@@ -1,0 +1,31 @@
+<html>
+<head>
+<style type="text/css">
+body{background:#000;color:#fff}
+#strategydiv{border:single #999 3px;display:inline-block;position:absolute;width:1000px;height:600px}
+div.debug{position:fixed;left:250px;top:10px;background:#000;color:#fff;z-index:10};
+</style>
+<!-- <link rel="stylesheet" href="shooter.css" type="text/css" /> -->
+<script type="text/javascript">
+if ("\v"==="v") {
+	document.write("This code is not written to run on Internet Explorer,<br />"+
+	"and it is unlikely that anything will happen.<br />Please upgrade to a better browser.<br /><a href='http://www.google.com/chrome/intl/en/landing_chrome.html?hl=en'><img src='http://www.google.com/intl/en/images/logos/chrome_logo.gif' style='border:none' /><br />"+
+	"Such as Google Chrome (recommended)</a><br />Officially supported browsers: Chrome/Safari, Opera (Firefox and Internet Explorer 9 should work, but it is quite slow)");
+}
+</script>
+<script type="text/javascript" src="hexstrategy.js"></script>
+<script type="text/javascript" src="vector.js"></script>
+<script type="text/javascript" src="maths.js"></script>
+
+<title>JavaScript Strategy - Work In Progress</title>
+</head>
+<body onresize="resizeEvent()">
+<div id="strategydiv"></div>
+<div id="debug" class="debug" style="position:fixed;left:200px;top:10px;"></div>
+<div id="fps" class="debug" style="position:fixed;left:50px;top:10px;"></div>
+<noscript>
+This web page relies entirely on JavaScript. Please enable JavaScript in your browser, or upgrade to a modern one.<br />
+Officially supported browsers: Chrome/Safari, Opera (Firefox should work, but it is quite slow)
+</noscript>
+</body>
+</html>
