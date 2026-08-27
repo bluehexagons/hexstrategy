@@ -20,10 +20,15 @@ interface PointerInteraction {
 }
 
 const canvas = element<HTMLCanvasElement>("game-canvas");
+const overviewCanvas = element<HTMLCanvasElement>("overview-canvas");
 const canvasWrap = element<HTMLDivElement>("canvas-wrap");
 const sampleCount = element<HTMLSpanElement>("sample-count");
+const worldSeed = element<HTMLSpanElement>("world-seed");
 const thingCount = element<HTMLSpanElement>("thing-count");
 const readyCount = element<HTMLSpanElement>("ready-count");
+const moteCount = element<HTMLSpanElement>("mote-count");
+const sourceCount = element<HTMLSpanElement>("source-count");
+const energyValue = element<HTMLSpanElement>("energy-value");
 const tickCount = element<HTMLSpanElement>("tick-count");
 const fpsValue = element<HTMLSpanElement>("fps-value");
 const clockIndicator = element<HTMLSpanElement>("clock-indicator");
@@ -85,12 +90,19 @@ function describeCell(cell: SimulationCell): string {
   const contents = cell.things.length === 0
     ? "empty"
     : `${plural(waiting, "waiting thing")}, ${plural(growing, "growing thing")}, ${plural(ready, "ready thing")}`;
-  return `Cell ${cell.column + 1}.${cell.row + 1}, ${contents}, ${plural(cell.imprints.length, "imprint")}.`;
+  const source = cell.generator ? " Timed source present." : "";
+  return `Cell ${cell.column + 1}.${cell.row + 1}, ${cell.terrain}, ${Math.round(cell.energy * 100)} percent energy, ${contents}, ${plural(cell.imprints.length, "imprint")}.${source}`;
 }
 
 function cursorStartingKey(): string {
-  const occupied = [...simulation.cells.values()].find(({ things }) => things.length > 0);
-  return occupied?.key ?? hexKey({ column: 0, row: 0 });
+  const center = { column: simulation.columns / 2, row: simulation.rows / 2 };
+  const occupied = [...simulation.cells.values()]
+    .filter(({ things }) => things.length > 0)
+    .sort((a, b) => (
+      Math.hypot(a.column - center.column, a.row - center.row)
+      - Math.hypot(b.column - center.column, b.row - center.row)
+    ))[0];
+  return occupied?.key ?? hexKey({ column: Math.floor(center.column), row: Math.floor(center.row) });
 }
 
 function announceCursor(): void {
@@ -135,25 +147,37 @@ function renderSelection(): void {
   );
   const imprints = cells.reduce((total, cell) => total + cell.imprints.length, 0);
   const singleCell = cells.length === 1 ? cells[0] : undefined;
+  const generation = cells.reduce(
+    (highest, cell) => Math.max(highest, ...cell.things.map((thing) => thing.generation), 0),
+    0,
+  );
+  const energy = cells.reduce((total, cell) => total + cell.energy, 0) / cells.length;
   const title = singleCell ? `Cell ${singleCell.column + 1}.${singleCell.row + 1}` : `${cells.length} cells linked`;
   const state = !cells.every(({ buildable }) => buildable)
     ? "Selection includes the void. It cannot hold a seed."
     : ready > 0
       ? "Ready mutation queued for the next 250 ms tick."
       : things > 0
-        ? "Selection is armed and will remain live while growth continues."
-        : "Empty cells selected. Press A to seed them."
+        ? "Selection is armed. Local energy changes how quickly its genome matures."
+        : singleCell?.generator
+          ? "Timed source selected. It diffuses energy and produces autonomous motes."
+          : "Empty cells selected. Press A to seed them."
+  const ecology = singleCell
+    ? `${singleCell.terrain} terrain · ${singleCell.generator ? "source online" : "ambient field"}`
+    : "linked field sample";
   selectionContent.innerHTML = `
     <div class="selection-profile">
       <span class="selection-glyph" aria-hidden="true">${ready > 0 ? "◆" : "◇"}</span>
-      <div><span>Realtime selection</span><h2>${title}</h2></div>
+      <div><span>${ecology}</span><h2>${title}</h2></div>
     </div>
     <p class="selection-note">${state}</p>
     <dl class="selection-stats">
       <div><dt>Things</dt><dd>${things}</dd></div>
       <div><dt>Ready</dt><dd>${ready}</dd></div>
-      <div><dt>Imprints</dt><dd>${imprints}</dd></div>
+      <div><dt>Energy</dt><dd>${Math.round(energy * 100)}%</dd></div>
+      <div><dt>Gen</dt><dd>${generation || "—"}</dd></div>
     </dl>
+    <p class="imprint-count">${plural(imprints, "persistent imprint")}</p>
   `;
 }
 
@@ -181,12 +205,17 @@ function updateActionPrompt(): void {
 
 function syncCamera(): void {
   zoomValue.textContent = `${renderer.camera.zoomPercent}%`;
+  renderer.drawOverview(overviewCanvas, simulation);
 }
 
 function syncInterface(): void {
   sampleCount.textContent = String(simulation.samples).padStart(3, "0");
+  worldSeed.textContent = simulation.seedLabel;
   thingCount.textContent = String(simulation.thingCount);
   readyCount.textContent = String(simulation.readyCount);
+  moteCount.textContent = String(simulation.motes.length);
+  sourceCount.textContent = String(simulation.generatorCount);
+  energyValue.textContent = `${Math.round(simulation.averageEnergy * 100)}%`;
   tickCount.textContent = String(simulation.ticks).padStart(5, "0");
   clockIndicator.className = `clock-indicator${simulation.paused ? " paused" : ""}`;
   clockLabel.textContent = simulation.paused ? "PAUSED" : `LIVE · ${1000 / TICK_MS} HZ`;
@@ -228,13 +257,10 @@ function moveKeyboardCursor(key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "Arrow
   if (!destination && (key === "ArrowUp" || key === "ArrowDown")) {
     const targetRow = current.row + (key === "ArrowUp" ? -1 : 1);
     const visualColumn = current.column + 0.5 * (current.row & 1);
-    destination = [...simulation.cells.values()]
-      .filter(({ row }) => row === targetRow)
-      .sort((a, b) => {
-        const aDistance = Math.abs(a.column + 0.5 * (a.row & 1) - visualColumn);
-        const bDistance = Math.abs(b.column + 0.5 * (b.row & 1) - visualColumn);
-        return aDistance - bDistance || a.column - b.column;
-      })[0];
+    destination = simulation.cellAt({
+      column: Math.round(visualColumn - 0.5 * (targetRow & 1)),
+      row: targetRow,
+    });
   }
 
   if (destination) hoveredKey = destination.key;
@@ -279,7 +305,7 @@ function resetWorld(): void {
   renderer.resetCamera(simulation);
   previousFrame = performance.now();
   syncInterface();
-  showToast("LATTICE RESTARTED");
+  showToast(`NEW WORLD · ${simulation.seedLabel}`);
   canvas.focus();
 }
 
@@ -309,7 +335,11 @@ canvas.addEventListener("pointerdown", (event) => {
     lastPoint: point,
     moved: false,
   };
-  canvas.setPointerCapture(event.pointerId);
+  try {
+    canvas.setPointerCapture(event.pointerId);
+  } catch {
+    // Synthetic pointer events do not have an active browser pointer to capture.
+  }
   canvas.classList.toggle("panning", shouldPan);
 
   if (!shouldPan) {
@@ -470,6 +500,30 @@ panModeButton.addEventListener("click", () => {
   panModeButton.setAttribute("aria-pressed", String(panMode));
   panModeButton.classList.toggle("active", panMode);
   canvas.classList.toggle("pan-ready", panMode);
+});
+
+overviewCanvas.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  const bounds = overviewCanvas.getBoundingClientRect();
+  const column = Math.max(0, Math.min(
+    simulation.columns - 1,
+    Math.floor(((event.clientX - bounds.left) / bounds.width) * simulation.columns),
+  ));
+  const row = Math.max(0, Math.min(
+    simulation.rows - 1,
+    Math.floor(((event.clientY - bounds.top) / bounds.height) * simulation.rows),
+  ));
+  renderer.centerOn({ column, row });
+  hoveredKey = hexKey({ column, row });
+  syncCamera();
+  showToast(`CAMERA · ${column + 1}.${row + 1}`);
+});
+overviewCanvas.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  renderer.resetCamera(simulation);
+  syncCamera();
+  showToast("CAMERA RECENTERED");
 });
 
 const resizeObserver = new ResizeObserver(() => {

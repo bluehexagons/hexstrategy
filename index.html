@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta
       name="description"
-      content="Hex Strategy, a restored realtime canvas growth experiment."
+      content="Hex Strategy, a large procedural realtime canvas simulation inspired by a 2011 prototype."
     >
     <meta name="theme-color" content="#080d0e">
     <link
@@ -27,21 +27,22 @@
         </a>
         <div class="topbar-actions">
           <span class="build-badge"><i></i> TS7 native build</span>
-          <button class="quiet-button" id="reset-button" type="button" title="Restart the simulation">
-            <span aria-hidden="true">↻</span> Restart world
+          <button class="quiet-button" id="reset-button" type="button" title="Generate a new procedural world">
+            <span aria-hidden="true">↻</span> New world
           </button>
         </div>
       </header>
 
       <section class="mission-bar" aria-label="Simulation status">
         <div>
-          <span class="eyebrow">Recovered prototype · circa 2008–2011</span>
+          <span class="eyebrow">96 × 64 procedural lattice · circa 2008–2011</span>
           <h1>The grid never waits.</h1>
         </div>
-        <p>Arm a growing thing. When it turns <strong>red</strong>, the live clock picks its next mutation.</p>
+        <p>Energy diffuses. Sources produce motes. Genomes mutate. Arm a growth and the <strong>red</strong> state becomes its next generation.</p>
         <div class="sample-counter">
           <span>Picked samples</span>
           <b id="sample-count">000</b>
+          <small>Seed <i id="world-seed">00000000</i></small>
         </div>
       </section>
 
@@ -52,6 +53,12 @@
               <span><small>Things</small><b id="thing-count">0</b></span>
               <i></i>
               <span><small>Ready</small><b id="ready-count">0</b></span>
+              <i></i>
+              <span><small>Motes</small><b id="mote-count">0</b></span>
+              <i></i>
+              <span><small>Sources</small><b id="source-count">0</b></span>
+              <i></i>
+              <span><small>Energy</small><b id="energy-value">0%</b></span>
               <i></i>
               <span><small>Tick</small><b id="tick-count">00000</b></span>
               <i></i>
@@ -78,11 +85,15 @@
             ></canvas>
             <div class="sr-only" id="map-announcer" aria-live="polite" aria-atomic="true"></div>
             <div class="status-toast" id="status-toast" role="status" aria-live="polite"></div>
+            <div class="overview-wrap">
+              <span>World overview · click to jump</span>
+              <canvas id="overview-canvas" role="button" aria-label="World overview. Click to move the camera, or press Enter to recenter." tabindex="0"></canvas>
+            </div>
             <div class="map-legend" aria-hidden="true">
               <span><i class="growing-key"></i> Growing</span>
               <span><i class="ready-key"></i> Ready</span>
-              <span><i class="armed-key"></i> Armed</span>
-              <span><i class="void-key"></i> Void</span>
+              <span><i class="source-key"></i> Source</span>
+              <span><i class="mote-key"></i> Mote</span>
             </div>
           </div>
 
@@ -115,6 +126,7 @@
               <div><dt><kbd>Right drag</kbd></dt><dd>Pan · click clears</dd></div>
               <div><dt><kbd>Wheel</kbd></dt><dd>Zoom under pointer</dd></div>
               <div><dt><kbd>A</kbd> / <kbd>D</kbd></dt><dd>Seed / clear</dd></div>
+              <div><dt><kbd>Overview</kbd></dt><dd>Jump across the world</dd></div>
             </dl>
           </section>
 
@@ -129,9 +141,9 @@
       </section>
 
       <footer class="site-footer">
-        <p>Procedural forms grow, rotate, leave imprints, and occasionally echo into a neighbor.</p>
+        <p>6,144 linked cells run energy diffusion, production cycles, autonomous movement, colonization, and inherited mutation.</p>
         <p id="map-help"><strong>Keyboard:</strong> Focus the map, navigate with arrows, Enter to select, A to seed, D to clear, P to pause, and 0 to recenter.</p>
-        <p><strong>Camera:</strong> Right-drag, middle-drag, or hold Space and drag. Touch users can toggle ✥ pan mode.</p>
+        <p><strong>Camera:</strong> Right-drag, Space-drag, or click the overview. Touch users can toggle ✥ pan mode.</p>
       </footer>
     </main>
 
