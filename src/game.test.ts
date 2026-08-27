@@ -26,6 +26,17 @@ describe("Game", () => {
     expect(game.reachableCells(game.selectedUnit!)).toHaveLength(0);
   });
 
+  it("keeps water and occupied cells out of movement range", () => {
+    const game = new Game();
+    game.selectCell("1,4");
+
+    const reachable = game.reachableCells(game.selectedUnit!);
+
+    expect(reachable.has("4,3")).toBe(false);
+    expect(reachable.has("2,5")).toBe(false);
+    expect(reachable.get("3,3")).toBe(3);
+  });
+
   it("resolves attacks and prevents a second strike", () => {
     const game = new Game();
     const lancer = game.units.find(({ id }) => id === "player-lancer");
@@ -53,5 +64,35 @@ describe("Game", () => {
     expect(game.playerSignal).toBe(6);
     expect(game.status).toBe("playerWon");
     expect(game.round).toBe(1);
+  });
+
+  it("resets player orders after the enemy finishes", () => {
+    const game = new Game();
+    game.selectCell("1,4");
+    game.selectCell("3,3");
+
+    game.endPlayerTurn();
+
+    expect(game.round).toBe(2);
+    expect(game.units.filter(({ team }) => team === "player").every(({ moved, attacked }) => !moved && !attacked)).toBe(true);
+    expect(game.units.filter(({ team }) => team === "enemy").every(({ moved, attacked }) => moved && attacked)).toBe(true);
+  });
+
+  it("ends the mission when the rival disables the last player unit", () => {
+    const game = new Game();
+    const player = game.units.find(({ id }) => id === "player-vanguard");
+    const enemy = game.units.find(({ id }) => id === "enemy-warden");
+    if (!player || !enemy) throw new Error("Expected demo units are missing");
+    player.column = 4;
+    player.row = 4;
+    player.health = 2;
+    enemy.column = 4;
+    enemy.row = 3;
+    game.units = [player, enemy];
+
+    game.endPlayerTurn();
+
+    expect(game.status).toBe("enemyWon");
+    expect(game.units).not.toContain(player);
   });
 });

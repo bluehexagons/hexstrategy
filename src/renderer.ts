@@ -8,6 +8,14 @@ export interface Point {
 
 const SQRT_THREE = Math.sqrt(3);
 
+export function calculateHexSize(width: number, height: number, boardWidth: number, boardHeight: number): number {
+  const shortestSide = Math.max(0, Math.min(width, height));
+  const padding = Math.min(34, Math.max(12, shortestSide * 0.05));
+  const availableWidth = Math.max(1, width - padding * 2);
+  const availableHeight = Math.max(1, height - padding * 2);
+  return Math.max(1, Math.min(availableWidth / boardWidth, availableHeight / boardHeight));
+}
+
 export function isPointInHex(point: Point, center: Point, radius: number): boolean {
   const horizontalDistance = Math.abs(point.x - center.x);
   const verticalDistance = Math.abs(point.y - center.y);
@@ -48,7 +56,6 @@ export class BoardRenderer {
     this.canvas.height = Math.round(this.height * ratio);
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-    const padding = Math.max(26, Math.min(this.width, this.height) * 0.065);
     const rawCenters = [...game.cells.values()].map((cell) => this.rawCenter(cell));
     const minimumX = Math.min(...rawCenters.map(({ x }) => x)) - SQRT_THREE / 2;
     const maximumX = Math.max(...rawCenters.map(({ x }) => x)) + SQRT_THREE / 2;
@@ -56,7 +63,7 @@ export class BoardRenderer {
     const maximumY = Math.max(...rawCenters.map(({ y }) => y)) + 1;
     const boardWidth = maximumX - minimumX;
     const boardHeight = maximumY - minimumY;
-    this.size = Math.min((this.width - padding * 2) / boardWidth, (this.height - padding * 2) / boardHeight);
+    this.size = calculateHexSize(this.width, this.height, boardWidth, boardHeight);
     this.origin = {
       x: (this.width - boardWidth * this.size) / 2 - minimumX * this.size,
       y: (this.height - boardHeight * this.size) / 2 - minimumY * this.size,

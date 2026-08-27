@@ -64,8 +64,10 @@
             <canvas
               id="game-canvas"
               tabindex="0"
+              aria-describedby="map-help"
               aria-label="Interactive hex map. Select a cyan unit, then select a highlighted tile to move or a red outlined unit to attack."
             ></canvas>
+            <div class="sr-only" id="map-announcer" aria-live="polite" aria-atomic="true"></div>
             <div class="turn-toast" id="turn-toast" role="status" aria-live="polite"></div>
             <div class="map-key" aria-hidden="true">
               <span><i class="move-key"></i> Move</span>
@@ -111,6 +113,7 @@
 
       <footer class="site-footer">
         <p>A modern rebuild of a 2011 canvas experiment.</p>
+        <p id="map-help"><strong>Keyboard:</strong> Focus the map, move with arrow keys, and press Enter to act.</p>
         <p><strong>Tip:</strong> Forest and ridge terrain cost 2 movement. Water is impassable.</p>
       </footer>
     </main>

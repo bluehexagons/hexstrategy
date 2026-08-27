@@ -1,5 +1,6 @@
 import "./styles.css";
 import { Game, ROLE_DETAILS, SIGNAL_TARGET, type Team, type Unit } from "./game";
+import { hexKey } from "./hex";
 import { BoardRenderer } from "./renderer";
 
 function element<T extends HTMLElement>(id: string): T {
@@ -28,16 +29,92 @@ const resultKicker = element<HTMLSpanElement>("result-kicker");
 const resultTitle = element<HTMLHeadingElement>("result-title");
 const resultMessage = element<HTMLParagraphElement>("result-message");
 const turnToast = element<HTMLDivElement>("turn-toast");
+const mapAnnouncer = element<HTMLDivElement>("map-announcer");
 
 let game = new Game();
 let hoveredKey: string | null = null;
+let keyboardMode = false;
 let toastTimer = 0;
+let animationFrame: number | null = null;
 const renderer = new BoardRenderer(canvas);
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function teamLabel(team: Team | null): string {
   if (team === "player") return "Northstar";
   if (team === "enemy") return "Redline";
   return "Neutral";
+}
+
+function cursorStartingKey(): string | null {
+  if (game.selectedUnit) return hexKey(game.selectedUnit);
+  const firstPlayerUnit = game.units.find(({ team }) => team === "player");
+  return firstPlayerUnit ? hexKey(firstPlayerUnit) : game.cells.keys().next().value ?? null;
+}
+
+function describeCell(key: string): string {
+  const cell = game.cellAt(key);
+  if (!cell) return "Unknown sector.";
+  const unit = game.unitAt(key);
+  const relay = cell.relay;
+  const contents = unit
+    ? `${teamLabel(unit.team)} ${ROLE_DETAILS[unit.role].label} ${unit.callsign}, ${unit.health} integrity.`
+    : "Empty.";
+  const relayDescription = relay ? `${relay.name} relay, ${teamLabel(relay.owner)} controlled.` : "";
+  return `Sector ${cell.column + 1}.${cell.row + 1}, ${cell.terrain}. ${contents} ${relayDescription}`.trim();
+}
+
+function announceKeyboardCursor(): void {
+  if (!keyboardMode || !hoveredKey) return;
+  mapAnnouncer.textContent = `${describeCell(hoveredKey)} Press Enter to act.`;
+}
+
+function updateCanvasDescription(): void {
+  const selected = game.selectedUnit;
+  const selectionDescription = selected
+    ? `${selected.callsign} selected with ${game.reachableCells(selected).size} movement sectors and ${game.attackableUnits(selected).length} targets available.`
+    : "No unit selected.";
+  const cursorDescription = keyboardMode && hoveredKey ? ` Cursor: ${describeCell(hoveredKey)}` : "";
+  canvas.setAttribute(
+    "aria-label",
+    `Interactive hex map. ${selectionDescription}${cursorDescription} Use arrow keys to move the cursor and Enter to act.`,
+  );
+}
+
+function moveKeyboardCursor(key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"): void {
+  const currentKey = hoveredKey ?? cursorStartingKey();
+  const current = currentKey ? game.cellAt(currentKey) : undefined;
+  if (!current) return;
+
+  let destination = key === "ArrowLeft"
+    ? game.cellAt({ column: current.column - 1, row: current.row })
+    : key === "ArrowRight"
+      ? game.cellAt({ column: current.column + 1, row: current.row })
+      : undefined;
+
+  if (!destination && (key === "ArrowUp" || key === "ArrowDown")) {
+    const targetRow = current.row + (key === "ArrowUp" ? -1 : 1);
+    const currentVisualColumn = current.column + 0.5 * (current.row & 1);
+    destination = [...game.cells.values()]
+      .filter(({ row }) => row === targetRow)
+      .sort((a, b) => {
+        const aDistance = Math.abs(a.column + 0.5 * (a.row & 1) - currentVisualColumn);
+        const bDistance = Math.abs(b.column + 0.5 * (b.row & 1) - currentVisualColumn);
+        return aDistance - bDistance || a.column - b.column;
+      })[0];
+  }
+
+  if (destination) hoveredKey = destination.key;
+  updateCanvasDescription();
+  announceKeyboardCursor();
+  renderer.draw(game, hoveredKey, performance.now());
+}
+
+function activateCell(key: string): void {
+  const previousMessage = game.activity[0];
+  game.selectCell(key);
+  syncInterface();
+  if (game.activity[0] !== previousMessage) showToast(game.activity[0] ?? "ORDER CONFIRMED");
+  announceKeyboardCursor();
 }
 
 function renderSelection(unit: Unit | null): void {
@@ -118,9 +195,7 @@ function syncInterface(): void {
   }
 
   endTurnButton.disabled = game.status !== "playing";
-  canvas.setAttribute("aria-label", selected
-    ? `${selected.callsign} selected. ${game.reachableCells(selected).size} movement sectors and ${game.attackableUnits(selected).length} targets available.`
-    : "Interactive hex map. Select a cyan unit to issue orders.");
+  updateCanvasDescription();
 
   if (game.status !== "playing") showResult();
   renderer.draw(game, hoveredKey, performance.now());
@@ -147,6 +222,7 @@ function showResult(): void {
 function resetGame(): void {
   game = new Game();
   hoveredKey = null;
+  keyboardMode = false;
   resultOverlay.hidden = true;
   resultOverlay.className = "result-overlay";
   renderer.resize(game);
@@ -161,31 +237,58 @@ function pointerPosition(event: PointerEvent): { x: number; y: number } {
 }
 
 canvas.addEventListener("pointermove", (event) => {
+  const wasKeyboardMode = keyboardMode;
+  keyboardMode = false;
   const { x, y } = pointerPosition(event);
-  hoveredKey = renderer.cellAtPoint(game, x, y)?.key ?? null;
+  const nextHoveredKey = renderer.cellAtPoint(game, x, y)?.key ?? null;
+  if (nextHoveredKey !== hoveredKey) {
+    hoveredKey = nextHoveredKey;
+    renderer.draw(game, hoveredKey, performance.now());
+  }
+  if (wasKeyboardMode) updateCanvasDescription();
   canvas.classList.toggle("interactive", hoveredKey !== null);
 });
 
 canvas.addEventListener("pointerleave", () => {
   hoveredKey = null;
   canvas.classList.remove("interactive");
+  renderer.draw(game, hoveredKey, performance.now());
 });
 
 canvas.addEventListener("pointerup", (event) => {
+  if (!event.isPrimary || event.button !== 0) return;
+  keyboardMode = false;
   const { x, y } = pointerPosition(event);
   const cell = renderer.cellAtPoint(game, x, y);
   if (!cell) return;
-  const previousMessage = game.activity[0];
-  game.selectCell(cell.key);
-  syncInterface();
-  if (game.activity[0] !== previousMessage) showToast(game.activity[0] ?? "ORDER CONFIRMED");
+  activateCell(cell.key);
 });
 
 canvas.addEventListener("keydown", (event) => {
+  keyboardMode = true;
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    moveKeyboardCursor(event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown");
+    return;
+  }
+  if ((event.key === "Enter" || event.key === " ") && hoveredKey) {
+    event.preventDefault();
+    activateCell(hoveredKey);
+    return;
+  }
   if (event.key === "Escape") {
     game.selectedUnitId = null;
     syncInterface();
+    announceKeyboardCursor();
   }
+});
+
+canvas.addEventListener("focus", () => {
+  keyboardMode = true;
+  hoveredKey ??= cursorStartingKey();
+  updateCanvasDescription();
+  announceKeyboardCursor();
+  renderer.draw(game, hoveredKey, performance.now());
 });
 
 endTurnButton.addEventListener("click", () => {
@@ -206,9 +309,20 @@ resizeObserver.observe(canvasWrap);
 
 function frame(time: number): void {
   renderer.draw(game, hoveredKey, time);
-  window.requestAnimationFrame(frame);
+  animationFrame = window.requestAnimationFrame(frame);
+}
+
+function syncAnimationPreference(): void {
+  if (reducedMotionQuery.matches) {
+    if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+    renderer.draw(game, hoveredKey, performance.now());
+  } else if (animationFrame === null) {
+    animationFrame = window.requestAnimationFrame(frame);
+  }
 }
 
 renderer.resize(game);
 syncInterface();
-window.requestAnimationFrame(frame);
+reducedMotionQuery.addEventListener("change", syncAnimationPreference);
+syncAnimationPreference();
