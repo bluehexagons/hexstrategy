@@ -8,12 +8,22 @@ This deliberately follows the character of the original prototype instead of tur
 
 ## How to play
 
-- Left-click a shape to arm it. Drag across cells for a multi-selection.
-- Hold Shift to add cells or Control/Command to toggle them.
 - When an armed shape turns red, its mutation is picked by the live clock. Its successor inherits a mutated genome and shape.
-- Press **A** to seed selected cells, or the cell under the pointer when nothing is selected.
-- Press **D** to clear the same targets.
-- Right-drag, middle-drag, or Space-drag to pan. Use the wheel to zoom around the pointer, or click the world overview to jump long distances.
+- Use **Seed thing** to add growths to selected cells and **Clear** to remove their contents.
+- The overview map jumps directly to distant parts of the world.
+
+### Touch
+
+- Tap a cell to select it. Drag with one finger to pan and pinch with two fingers to zoom.
+- Turn on **Multi** to add or remove cells with successive taps.
+- Seed, clear, pause, zoom, regenerate, and multi-select all have on-screen controls. The action dock remains available at the bottom of a phone screen.
+
+### Mouse and keyboard
+
+- Left-click a shape to arm it. Drag across cells for a multi-selection.
+- Hold Shift to add cells or Control/Command to toggle them. The on-screen **Multi** control provides persistent toggle selection.
+- Press **A** to seed and **D** to clear selected or hovered cells.
+- Right-drag, middle-drag, or Space-drag to pan. Use the wheel to zoom around the pointer.
 - Press **P** to pause the world clock and **0** to recenter the camera.
 
 Dark rifts are procedurally generated unbuildable terrain; coordinate 3.3 remains dark in every seed because it was the one unbuildable tile encoded in the original level. There is no win state; the sample counter, evolving ecology, and accumulated imprints are the record of the run. **New world** creates a different reproducible seed.
@@ -25,6 +35,7 @@ Dark rifts are procedurally generated unbuildable terrain; coordinate 3.3 remain
 - Random polygon meshes, colors, delayed activation, progress bars, and six scale/rotation variants
 - Red completion highlights and selection-driven mutation picking
 - Multi-selection, Shift-add, Control-toggle, right-drag panning, pointer-centered zoom, and A/D actions
+- Native tap selection, one-finger panning, two-finger pinch zoom, coarse-pointer sizing, and a mobile action dock
 - Persistent visual imprints of picked forms, replacing the old prototype's accidental content stacking
 - Procedural terrain, energy diffusion, and energy-dependent growth across the complete lattice
 - Timed sources inspired by the unfinished factory system

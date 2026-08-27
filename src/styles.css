@@ -405,6 +405,11 @@ canvas:focus-visible {
   font-size: 9px;
 }
 
+.selection-mode-button b {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .canvas-wrap {
   position: relative;
   height: clamp(520px, 62vh, 700px);
@@ -459,6 +464,10 @@ canvas:focus-visible {
 
 #game-canvas.panning {
   cursor: grabbing;
+}
+
+.touch-guide {
+  display: none;
 }
 
 .map-legend {
@@ -525,6 +534,7 @@ canvas:focus-visible {
   width: 158px;
   height: 94px;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .status-toast {
@@ -632,6 +642,20 @@ kbd {
 .action-button.pause[aria-pressed="true"] {
   border-color: var(--red);
   color: var(--red);
+}
+
+.action-button.selection-mode-button {
+  display: flex;
+  min-width: 76px;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button.selection-mode-button[aria-pressed="true"] {
+  border-color: var(--cyan);
+  background: rgba(99, 223, 214, 0.12);
+  color: var(--cyan);
 }
 
 .action-button kbd {
@@ -981,6 +1005,10 @@ kbd {
     justify-content: space-between;
   }
 
+  .telemetry-secondary {
+    display: none !important;
+  }
+
   .world-clock {
     order: 2;
   }
@@ -990,8 +1018,8 @@ kbd {
   }
 
   .canvas-wrap {
-    height: min(62vh, 500px);
-    min-height: 390px;
+    height: min(68vh, 560px);
+    min-height: 430px;
   }
 
   .map-legend {
@@ -1028,7 +1056,7 @@ kbd {
 
   .action-buttons {
     display: grid;
-    grid-template-columns: 1.2fr 0.8fr 0.8fr;
+    grid-template-columns: 0.85fr 1.2fr 0.75fr 0.75fr;
   }
 
   .action-button {
@@ -1052,6 +1080,113 @@ kbd {
     grid-template-columns: 1fr;
     gap: 8px;
     padding-bottom: 10px;
+  }
+}
+
+@media (any-pointer: coarse) {
+  body {
+    padding-bottom: 66px;
+  }
+
+  button,
+  #overview-canvas {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .quiet-button {
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .camera-tools {
+    height: 44px;
+  }
+
+  .camera-tools button {
+    min-width: 44px;
+    padding: 0 10px;
+  }
+
+  .camera-tools #camera-reset-button {
+    min-width: 70px;
+  }
+
+  .touch-guide {
+    position: absolute;
+    z-index: 3;
+    top: 12px;
+    left: 50%;
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    padding: 7px 9px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(54, 68, 66, 0.8);
+    background: rgba(8, 13, 14, 0.88);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 7px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+  }
+
+  .touch-guide b {
+    color: var(--acid);
+    font-size: 7px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .touch-guide i {
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: var(--quiet);
+  }
+
+  .action-button {
+    min-height: 50px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 760px) and (any-pointer: coarse) {
+  .overview-wrap {
+    top: 52px;
+    bottom: auto;
+  }
+
+  .board-footer {
+    position: fixed;
+    z-index: 20;
+    right: 9px;
+    bottom: 0;
+    left: 9px;
+    min-height: 62px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    background: rgba(13, 20, 21, 0.97);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(12px);
+  }
+
+  .board-footer > p {
+    display: none;
+  }
+
+  .action-buttons {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .action-button kbd {
+    display: none;
+  }
+
+  .map-legend {
+    display: none;
   }
 }
 

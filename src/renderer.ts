@@ -32,6 +32,7 @@ export interface ViewBounds {
 
 const SQRT_THREE = Math.sqrt(3);
 const MINIMUM_HEX_SIZE = 7;
+const MINIMUM_TOUCH_HEX_SIZE = 14;
 const MAXIMUM_HEX_SIZE = 72;
 const STARTING_ZOOM = 2.35;
 const TERRAIN_COLORS: Readonly<Record<Terrain, { readonly fill: string; readonly stroke: string }>> = {
@@ -66,6 +67,9 @@ export class BoardRenderer {
   private initialized = false;
   private overviewTerrain: HTMLCanvasElement | null = null;
   private overviewSeed = -1;
+  private readonly minimumHexSize = window.matchMedia("(any-pointer: coarse)").matches
+    ? MINIMUM_TOUCH_HEX_SIZE
+    : MINIMUM_HEX_SIZE;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext("2d");
@@ -525,7 +529,7 @@ export class BoardRenderer {
   }
 
   private clampHexSize(size: number): number {
-    return Math.max(MINIMUM_HEX_SIZE, Math.min(MAXIMUM_HEX_SIZE, size));
+    return Math.max(this.minimumHexSize, Math.min(MAXIMUM_HEX_SIZE, size));
   }
 
   private hexPath(center: Point, radius: number): void {

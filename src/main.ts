@@ -19,6 +19,19 @@ interface PointerInteraction {
   moved: boolean;
 }
 
+interface TouchContact {
+  readonly pointerId: number;
+  readonly startPoint: Point;
+  lastPoint: Point;
+  moved: boolean;
+  suppressTap: boolean;
+}
+
+interface PinchGesture {
+  readonly midpoint: Point;
+  readonly distance: number;
+}
+
 const canvas = element<HTMLCanvasElement>("game-canvas");
 const overviewCanvas = element<HTMLCanvasElement>("overview-canvas");
 const canvasWrap = element<HTMLDivElement>("canvas-wrap");
@@ -45,22 +58,25 @@ const resetButton = element<HTMLButtonElement>("reset-button");
 const zoomOutButton = element<HTMLButtonElement>("zoom-out-button");
 const zoomInButton = element<HTMLButtonElement>("zoom-in-button");
 const cameraResetButton = element<HTMLButtonElement>("camera-reset-button");
-const panModeButton = element<HTMLButtonElement>("pan-mode-button");
+const selectionModeButton = element<HTMLButtonElement>("selection-mode-button");
 const statusToast = element<HTMLDivElement>("status-toast");
 const mapAnnouncer = element<HTMLDivElement>("map-announcer");
 
 let simulation = new Simulation();
 let hoveredKey: string | null = null;
 let keyboardMode = false;
-let panMode = false;
+let multiSelectMode = false;
 let spacePressed = false;
 let pointerInteraction: PointerInteraction | null = null;
+const touchContacts = new Map<number, TouchContact>();
+let pinchGesture: PinchGesture | null = null;
 let toastTimer = 0;
 let previousFrame = performance.now();
 let fpsStart = previousFrame;
 let framesSinceSample = 0;
 const renderer = new BoardRenderer(canvas);
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const coarsePointerQuery = window.matchMedia("(any-pointer: coarse)");
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
@@ -120,7 +136,9 @@ function updateCanvasDescription(): void {
     : "";
   canvas.setAttribute(
     "aria-label",
-    `Realtime hex growth map. ${selection}${cursor} Use arrow keys to move, Enter to select, A to seed, and D to clear.`,
+    coarsePointerQuery.matches
+      ? `Realtime hex growth map. ${selection}${cursor} Tap to select, drag to pan, pinch to zoom, and use the on-screen action buttons.`
+      : `Realtime hex growth map. ${selection}${cursor} Use arrow keys to move, Enter to select, A to seed, and D to clear.`,
   );
 }
 
@@ -134,7 +152,7 @@ function renderSelection(): void {
       <div class="empty-selection">
         <span class="empty-symbol" aria-hidden="true">⌁</span>
         <h2>No cells selected</h2>
-        <p>Select a growing shape to arm it. When it turns red, the next world tick picks its mutation.</p>
+        <p>${coarsePointerQuery.matches ? "Tap" : "Select"} a growing shape to arm it. When it turns red, the next world tick picks its mutation.</p>
       </div>
     `;
     return;
@@ -199,12 +217,16 @@ function updateActionPrompt(): void {
   } else if (cells.length > 0) {
     actionPrompt.innerHTML = `<strong>${plural(cells.length, "empty cell")} selected.</strong> Press <kbd>A</kbd> to seed.`;
   } else {
-    actionPrompt.innerHTML = `<kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle`;
+    actionPrompt.innerHTML = coarsePointerQuery.matches
+      ? `<strong>Tap</strong> select <span>·</span> <strong>Drag</strong> pan <span>·</span> <strong>Pinch</strong> zoom`
+      : `<kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle`;
   }
 }
 
 function syncCamera(): void {
-  zoomValue.textContent = `${renderer.camera.zoomPercent}%`;
+  zoomValue.textContent = coarsePointerQuery.matches
+    ? `${(renderer.camera.zoomPercent / 100).toFixed(1)}×`
+    : `${renderer.camera.zoomPercent}%`;
   renderer.drawOverview(overviewCanvas, simulation);
 }
 
@@ -302,6 +324,12 @@ function resetWorld(): void {
   hoveredKey = null;
   keyboardMode = false;
   pointerInteraction = null;
+  touchContacts.clear();
+  pinchGesture = null;
+  multiSelectMode = false;
+  selectionModeButton.setAttribute("aria-pressed", "false");
+  selectionModeButton.classList.remove("active");
+  selectionModeButton.querySelector("span")!.textContent = "Multi";
   renderer.resetCamera(simulation);
   previousFrame = performance.now();
   syncInterface();
@@ -311,19 +339,137 @@ function resetWorld(): void {
 
 function updateHover(point: Point): void {
   hoveredKey = renderer.cellAtPoint(simulation, point.x, point.y)?.key ?? null;
-  canvas.classList.toggle("interactive", hoveredKey !== null && !panMode && !spacePressed);
+  canvas.classList.toggle("interactive", hoveredKey !== null && !spacePressed);
+}
+
+function capturePointer(pointerId: number): void {
+  try {
+    canvas.setPointerCapture(pointerId);
+  } catch {
+    // Synthetic pointer events do not have an active browser pointer to capture.
+  }
+}
+
+function releasePointer(pointerId: number): void {
+  if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+}
+
+function currentPinch(): PinchGesture | null {
+  const contacts = [...touchContacts.values()];
+  const first = contacts[0];
+  const second = contacts[1];
+  if (!first || !second) return null;
+  return {
+    midpoint: {
+      x: (first.lastPoint.x + second.lastPoint.x) / 2,
+      y: (first.lastPoint.y + second.lastPoint.y) / 2,
+    },
+    distance: Math.max(1, Math.hypot(
+      second.lastPoint.x - first.lastPoint.x,
+      second.lastPoint.y - first.lastPoint.y,
+    )),
+  };
+}
+
+function beginTouch(event: PointerEvent): void {
+  event.preventDefault();
+  keyboardMode = false;
+  hoveredKey = null;
+  const point = pointFor(event);
+  touchContacts.set(event.pointerId, {
+    pointerId: event.pointerId,
+    startPoint: point,
+    lastPoint: point,
+    moved: false,
+    suppressTap: false,
+  });
+  capturePointer(event.pointerId);
+  if (touchContacts.size >= 2) {
+    for (const contact of touchContacts.values()) contact.suppressTap = true;
+    pinchGesture = currentPinch();
+    canvas.classList.add("panning");
+  }
+}
+
+function moveTouch(event: PointerEvent): void {
+  const contact = touchContacts.get(event.pointerId);
+  if (!contact) return;
+  event.preventDefault();
+  const point = pointFor(event);
+  const horizontal = point.x - contact.lastPoint.x;
+  const vertical = point.y - contact.lastPoint.y;
+  contact.lastPoint = point;
+  if (Math.hypot(point.x - contact.startPoint.x, point.y - contact.startPoint.y) > 8) {
+    contact.moved = true;
+    contact.suppressTap = true;
+  }
+
+  if (touchContacts.size >= 2) {
+    const nextPinch = currentPinch();
+    if (pinchGesture && nextPinch) {
+      renderer.panBy(
+        nextPinch.midpoint.x - pinchGesture.midpoint.x,
+        nextPinch.midpoint.y - pinchGesture.midpoint.y,
+      );
+      renderer.zoomAt(nextPinch.distance / pinchGesture.distance, nextPinch.midpoint);
+      syncCamera();
+    }
+    pinchGesture = nextPinch;
+    return;
+  }
+
+  if (contact.moved) {
+    renderer.panBy(horizontal, vertical);
+    canvas.classList.add("panning");
+    syncCamera();
+  }
+}
+
+function finishTouch(event: PointerEvent, cancelled = false): void {
+  const contact = touchContacts.get(event.pointerId);
+  if (!contact) return;
+  event.preventDefault();
+  const point = pointFor(event);
+  touchContacts.delete(event.pointerId);
+  releasePointer(event.pointerId);
+
+  if (touchContacts.size < 2) pinchGesture = null;
+  for (const remaining of touchContacts.values()) {
+    remaining.suppressTap = true;
+  }
+  if (touchContacts.size === 0) canvas.classList.remove("panning");
+
+  if (!cancelled && !contact.moved && !contact.suppressTap) {
+    const cell = renderer.cellAtPoint(simulation, point.x, point.y);
+    if (cell) {
+      const wasSelected = simulation.selectedKeys.has(cell.key);
+      selectCell(cell, multiSelectMode ? "toggle" : "replace");
+      showToast(multiSelectMode
+        ? wasSelected ? "CELL REMOVED" : "CELL ADDED"
+        : `CELL ${cell.column + 1}.${cell.row + 1}`);
+    } else if (!multiSelectMode) {
+      simulation.clearSelection();
+      syncInterface();
+    }
+  }
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "touch") {
+    beginTouch(event);
+    return;
+  }
   if (!event.isPrimary || ![0, 1, 2].includes(event.button)) return;
   event.preventDefault();
   canvas.focus();
   keyboardMode = false;
   const point = pointFor(event);
-  const shouldPan = event.button === 1 || event.button === 2 || panMode || (spacePressed && event.button === 0);
+  const shouldPan = event.button === 1 || event.button === 2 || (spacePressed && event.button === 0);
   const selectionMode: SelectionMode = event.ctrlKey || event.metaKey
     ? "toggle"
-    : event.shiftKey
+    : multiSelectMode
+      ? "toggle"
+      : event.shiftKey
       ? "add"
       : "replace";
   pointerInteraction = {
@@ -335,11 +481,7 @@ canvas.addEventListener("pointerdown", (event) => {
     lastPoint: point,
     moved: false,
   };
-  try {
-    canvas.setPointerCapture(event.pointerId);
-  } catch {
-    // Synthetic pointer events do not have an active browser pointer to capture.
-  }
+  capturePointer(event.pointerId);
   canvas.classList.toggle("panning", shouldPan);
 
   if (!shouldPan) {
@@ -355,6 +497,10 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 
 canvas.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "touch") {
+    moveTouch(event);
+    return;
+  }
   if (!event.isPrimary) return;
   const point = pointFor(event);
   const interaction = pointerInteraction;
@@ -383,6 +529,10 @@ canvas.addEventListener("pointermove", (event) => {
 });
 
 function finishPointer(event: PointerEvent): void {
+  if (event.pointerType === "touch") {
+    finishTouch(event);
+    return;
+  }
   const interaction = pointerInteraction;
   if (!interaction || interaction.pointerId !== event.pointerId) return;
   if (interaction.mode === "pan" && interaction.button === 2 && !interaction.moved) {
@@ -391,14 +541,17 @@ function finishPointer(event: PointerEvent): void {
   }
   pointerInteraction = null;
   canvas.classList.remove("panning");
-  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  releasePointer(event.pointerId);
   updateHover(pointFor(event));
 }
 
 canvas.addEventListener("pointerup", finishPointer);
-canvas.addEventListener("pointercancel", finishPointer);
+canvas.addEventListener("pointercancel", (event) => {
+  if (event.pointerType === "touch") finishTouch(event, true);
+  else finishPointer(event);
+});
 canvas.addEventListener("pointerleave", () => {
-  if (pointerInteraction) return;
+  if (pointerInteraction || touchContacts.size > 0) return;
   hoveredKey = null;
   canvas.classList.remove("interactive");
 });
@@ -468,6 +621,9 @@ window.addEventListener("keyup", (event) => {
 
 window.addEventListener("blur", () => {
   spacePressed = false;
+  touchContacts.clear();
+  pinchGesture = null;
+  pointerInteraction = null;
   canvas.classList.remove("pan-ready", "panning");
 });
 
@@ -495,11 +651,12 @@ cameraResetButton.addEventListener("click", () => {
   syncCamera();
   showToast("CAMERA RECENTERED");
 });
-panModeButton.addEventListener("click", () => {
-  panMode = !panMode;
-  panModeButton.setAttribute("aria-pressed", String(panMode));
-  panModeButton.classList.toggle("active", panMode);
-  canvas.classList.toggle("pan-ready", panMode);
+selectionModeButton.addEventListener("click", () => {
+  multiSelectMode = !multiSelectMode;
+  selectionModeButton.setAttribute("aria-pressed", String(multiSelectMode));
+  selectionModeButton.classList.toggle("active", multiSelectMode);
+  selectionModeButton.querySelector("span")!.textContent = multiSelectMode ? "Multi on" : "Multi";
+  showToast(multiSelectMode ? "MULTI-SELECT ON" : "MULTI-SELECT OFF");
 });
 
 overviewCanvas.addEventListener("pointerdown", (event) => {
