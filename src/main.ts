@@ -123,6 +123,7 @@ function syncInterface(): void {
     : "Interactive hex map. Select a cyan unit to issue orders.");
 
   if (game.status !== "playing") showResult();
+  renderer.draw(game, hoveredKey, performance.now());
 }
 
 function showToast(message: string): void {
@@ -197,7 +198,10 @@ endTurnButton.addEventListener("click", () => {
 resetButton.addEventListener("click", resetGame);
 playAgainButton.addEventListener("click", resetGame);
 
-const resizeObserver = new ResizeObserver(() => renderer.resize(game));
+const resizeObserver = new ResizeObserver(() => {
+  renderer.resize(game);
+  renderer.draw(game, hoveredKey, performance.now());
+});
 resizeObserver.observe(canvasWrap);
 
 function frame(time: number): void {
