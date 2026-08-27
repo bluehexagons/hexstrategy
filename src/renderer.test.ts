@@ -18,11 +18,11 @@ describe("isPointInHex", () => {
 });
 
 describe("calculateHexSize", () => {
-  it("keeps the board scale positive in collapsed containers", () => {
-    expect(calculateHexSize(0, 0, 18, 11)).toBe(1);
+  it("keeps camera scale positive in collapsed containers", () => {
+    expect(calculateHexSize(0, 0, 28, 24)).toBe(1);
   });
 
-  it("uses compact padding to preserve mobile touch targets", () => {
-    expect(calculateHexSize(390, 390, 18, 11)).toBeCloseTo(19.5);
+  it("fits the restored 16 by 16 board into a desktop viewport", () => {
+    expect(calculateHexSize(900, 540, 28.6, 24.5)).toBeCloseTo(19.4, 1);
   });
 });

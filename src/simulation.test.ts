@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_THINGS_PER_CELL, Simulation, TICK_MS, thingProgress } from "./simulation";
+import { MAX_THINGS_PER_CELL, Simulation, TICK_MS, thingProgress, thingRotation, thingScale } from "./simulation";
 
 describe("Simulation", () => {
   it("restores the original 16 by 16 map and unbuildable level tile", () => {
@@ -20,7 +20,7 @@ describe("Simulation", () => {
     expect(simulation.seedCells(["4,4", "2,2"])).toBe(0);
   });
 
-  it("advances growth on the original 250 millisecond world tick", () => {
+  it("waits, then advances growth on the original 250 millisecond world tick", () => {
     const simulation = new Simulation(() => 0.9, false);
     simulation.seedCells(["4,4"]);
     const thing = simulation.cellAt("4,4")?.things[0];
@@ -29,8 +29,13 @@ describe("Simulation", () => {
     expect(simulation.advance(TICK_MS - 1)).toBe(0);
     expect(thing.progressTicks).toBe(0);
     expect(simulation.advance(1)).toBe(1);
+    expect(thing.waitedTicks).toBe(1);
+    expect(thing.progressTicks).toBe(0);
+    simulation.advance(thing.waitTicks * TICK_MS);
     expect(thing.progressTicks).toBe(1);
     expect(thingProgress(thing)).toBeGreaterThan(0);
+    expect(thingRotation(thing, 0.5)).not.toBeNaN();
+    expect(thingScale(thing, 0.5)).toBeGreaterThan(0);
   });
 
   it("picks a selected mature thing, retains its imprint, and starts its successor", () => {
@@ -40,7 +45,7 @@ describe("Simulation", () => {
     const original = simulation.cellAt("4,4")?.things[0];
     if (!original) throw new Error("Expected a seeded thing");
 
-    simulation.advance(original.growthTicks * TICK_MS);
+    simulation.advance((original.waitTicks + original.growthTicks) * TICK_MS);
     const cell = simulation.cellAt("4,4");
 
     expect(simulation.samples).toBe(1);
@@ -57,7 +62,7 @@ describe("Simulation", () => {
     const original = simulation.cellAt("4,4")?.things[0];
     if (!original) throw new Error("Expected a seeded thing");
 
-    simulation.advance(original.growthTicks * TICK_MS);
+    simulation.advance((original.waitTicks + original.growthTicks) * TICK_MS);
 
     expect(simulation.samples).toBe(1);
     expect(simulation.thingCount).toBe(2);

@@ -7,8 +7,14 @@ export const MAX_THINGS_PER_CELL = 3;
 const MAX_IMPRINTS_PER_CELL = 6;
 const SPREAD_CHANCE = 0.32;
 
-export type ThingPhase = "growing" | "ready";
-export type ThingAnimation = "shrink" | "spin-clockwise" | "spin-counterclockwise" | "spin-and-shrink";
+export type ThingPhase = "waiting" | "growing" | "ready";
+export type ThingAnimation =
+  | "shrink"
+  | "shrink-alt"
+  | "spin-clockwise"
+  | "spin-counterclockwise"
+  | "spin-and-shrink-clockwise"
+  | "spin-and-shrink-counterclockwise";
 export type SelectionMode = "replace" | "add" | "toggle";
 
 export interface ShapePoint {
@@ -24,8 +30,10 @@ export interface Thing {
   readonly fill: string;
   readonly animation: ThingAnimation;
   readonly baseRotation: number;
+  readonly waitTicks: number;
   readonly growthTicks: number;
   phase: ThingPhase;
+  waitedTicks: number;
   progressTicks: number;
 }
 
@@ -56,7 +64,27 @@ const INITIAL_SEEDS: readonly HexCoordinate[] = [
 
 export function thingProgress(thing: Thing, tickFraction = 0): number {
   if (thing.phase === "ready") return 1;
+  if (thing.phase === "waiting") return 0;
   return Math.min(1, (thing.progressTicks + Math.max(0, Math.min(tickFraction, 1))) / thing.growthTicks);
+}
+
+export function thingRotation(thing: Thing, progress: number): number {
+  if (thing.animation === "spin-clockwise" || thing.animation === "spin-and-shrink-clockwise") {
+    return progress * Math.PI * 2;
+  }
+  if (thing.animation === "spin-counterclockwise" || thing.animation === "spin-and-shrink-counterclockwise") {
+    return progress * Math.PI * -2;
+  }
+  return 0;
+}
+
+export function thingScale(thing: Thing, progress: number): number {
+  return thing.animation === "shrink"
+    || thing.animation === "shrink-alt"
+    || thing.animation === "spin-and-shrink-clockwise"
+    || thing.animation === "spin-and-shrink-counterclockwise"
+    ? 1 - progress * 0.42
+    : 1;
 }
 
 export class Simulation {
@@ -95,7 +123,11 @@ export class Simulation {
     if (populate) {
       for (const coordinate of INITIAL_SEEDS) {
         const thing = this.addThing(this.cellAt(coordinate), 1);
-        if (thing) thing.progressTicks = Math.floor(thing.growthTicks * (0.12 + this.random() * 0.62));
+        if (thing) {
+          thing.phase = "growing";
+          thing.waitedTicks = thing.waitTicks;
+          thing.progressTicks = Math.floor(thing.growthTicks * (0.12 + this.random() * 0.62));
+        }
       }
     }
   }
@@ -112,7 +144,14 @@ export class Simulation {
   }
 
   get growingCount(): number {
-    return this.thingCount - this.readyCount;
+    return [...this.cells.values()].reduce(
+      (total, cell) => total + cell.things.filter(({ phase }) => phase === "growing").length,
+      0,
+    );
+  }
+
+  get waitingCount(): number {
+    return this.thingCount - this.readyCount - this.growingCount;
   }
 
   get tickFraction(): number {
@@ -190,6 +229,11 @@ export class Simulation {
     for (const cell of this.cells.values()) {
       for (const thing of cell.things) {
         if (thing.phase === "ready") continue;
+        if (thing.phase === "waiting") {
+          thing.waitedTicks += 1;
+          if (thing.waitedTicks >= thing.waitTicks) thing.phase = "growing";
+          continue;
+        }
         thing.progressTicks += 1;
         if (thing.progressTicks >= thing.growthTicks) {
           thing.progressTicks = thing.growthTicks;
@@ -213,8 +257,8 @@ export class Simulation {
       shape: thing.shape,
       stroke: thing.stroke,
       fill: thing.fill,
-      rotation: thing.baseRotation + this.rotationFor(thing, 1),
-      scale: this.scaleFor(thing, 1),
+      rotation: thing.baseRotation + thingRotation(thing, 1),
+      scale: thingScale(thing, 1),
     });
     if (cell.imprints.length > MAX_IMPRINTS_PER_CELL) cell.imprints.shift();
 
@@ -255,12 +299,14 @@ export class Simulation {
     }
 
     const hue = Math.floor(this.random() * 360);
-    const animationIndex = Math.floor(this.random() * 4);
+    const animationIndex = Math.floor(this.random() * 6);
     const animations: readonly ThingAnimation[] = [
       "shrink",
+      "shrink-alt",
       "spin-clockwise",
       "spin-counterclockwise",
-      "spin-and-shrink",
+      "spin-and-shrink-clockwise",
+      "spin-and-shrink-counterclockwise",
     ];
 
     return {
@@ -271,22 +317,12 @@ export class Simulation {
       fill: `hsl(${(hue + 42) % 360} 76% 48%)`,
       animation: animations[animationIndex] ?? "shrink",
       baseRotation: this.random() * Math.PI * 2,
-      growthTicks: 14 + Math.floor(this.random() * 22),
-      phase: "growing",
+      waitTicks: 2 + Math.floor(this.random() * 10),
+      growthTicks: 10 + Math.floor(this.random() * 40),
+      phase: "waiting",
+      waitedTicks: 0,
       progressTicks: 0,
     };
-  }
-
-  private rotationFor(thing: Thing, progress: number): number {
-    if (thing.animation === "spin-clockwise" || thing.animation === "spin-and-shrink") return progress * Math.PI * 2;
-    if (thing.animation === "spin-counterclockwise") return progress * Math.PI * -2;
-    return 0;
-  }
-
-  private scaleFor(thing: Thing, progress: number): number {
-    return thing.animation === "shrink" || thing.animation === "spin-and-shrink"
-      ? 1 - progress * 0.42
-      : 1;
   }
 
   private log(message: string): void {

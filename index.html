@@ -5,58 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta
       name="description"
-      content="Signal Frontier, a compact turn-based hex strategy demo."
+      content="Hex Strategy, a restored realtime canvas growth experiment."
     >
-    <meta name="theme-color" content="#071214">
+    <meta name="theme-color" content="#080d0e">
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><path fill=%22%23b8f34a%22 d=%22M32 3 57 17v30L32 61 7 47V17z%22/><path fill=%22%23071214%22 d=%22M32 13 48 22v20l-16 9-16-9V22z%22/></svg>"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><path fill=%22%23b7ef53%22 d=%22M32 3 57 17v30L32 61 7 47V17z%22/><path fill=%22%23080d0e%22 d=%22M32 12 49 22v20L32 52 15 42V22z%22/><circle cx=%2232%22 cy=%2232%22 r=%226%22 fill=%22%23ff6769%22/></svg>"
     >
-    <title>Signal Frontier — Hex Strategy</title>
+    <title>Hex Strategy — Realtime Systems Test</title>
   </head>
   <body>
-    <div class="noise" aria-hidden="true"></div>
+    <div class="scanlines" aria-hidden="true"></div>
     <main class="app-shell">
       <header class="topbar">
-        <a class="brand" href="./" aria-label="Signal Frontier home">
+        <a class="brand" href="./" aria-label="Hex Strategy home">
           <span class="brand-mark" aria-hidden="true"><i></i></span>
           <span>
-            <b>Signal Frontier</b>
-            <small>Hex strategy field test</small>
+            <b>Hex Strategy</b>
+            <small>Realtime systems test</small>
           </span>
         </a>
         <div class="topbar-actions">
           <span class="build-badge"><i></i> TS7 native build</span>
-          <button class="icon-button" id="reset-button" type="button" title="Restart the scenario">
-            <span aria-hidden="true">↻</span>
-            <span>Restart</span>
+          <button class="quiet-button" id="reset-button" type="button" title="Restart the simulation">
+            <span aria-hidden="true">↻</span> Restart world
           </button>
         </div>
       </header>
 
-      <section class="mission-bar" aria-label="Mission status">
+      <section class="mission-bar" aria-label="Simulation status">
         <div>
-          <span class="eyebrow">Operation 01</span>
-          <h1>Light the frontier.</h1>
+          <span class="eyebrow">Recovered prototype · circa 2008–2011</span>
+          <h1>The grid never waits.</h1>
         </div>
-        <p>Secure relay stations and reach <strong>6 signal</strong> before the rival network does.</p>
-        <div class="round-counter">
-          <span>Round</span>
-          <b id="round-value">01</b>
+        <p>Arm a growing thing. When it turns <strong>red</strong>, the live clock picks its next mutation.</p>
+        <div class="sample-counter">
+          <span>Picked samples</span>
+          <b id="sample-count">000</b>
         </div>
       </section>
 
       <section class="game-layout">
         <div class="board-card">
           <div class="board-toolbar">
-            <div class="faction-score player-score">
-              <span class="faction-dot"></span>
-              <span><small>Northstar</small><b id="player-score">0 / 6</b></span>
+            <div class="telemetry" aria-label="World telemetry">
+              <span><small>Things</small><b id="thing-count">0</b></span>
+              <i></i>
+              <span><small>Ready</small><b id="ready-count">0</b></span>
+              <i></i>
+              <span><small>Tick</small><b id="tick-count">00000</b></span>
+              <i></i>
+              <span><small>FPS</small><b id="fps-value">--</b></span>
             </div>
-            <div class="versus-mark" aria-hidden="true"><span></span> SIGNAL <span></span></div>
-            <div class="faction-score enemy-score">
-              <span><small>Redline</small><b id="enemy-score">0 / 6</b></span>
-              <span class="faction-dot"></span>
+            <div class="world-clock">
+              <span class="clock-indicator" id="clock-indicator" aria-hidden="true"><i></i></span>
+              <span id="clock-label">LIVE · 4 HZ</span>
+            </div>
+            <div class="camera-tools" aria-label="Camera controls">
+              <button id="zoom-out-button" type="button" aria-label="Zoom out">−</button>
+              <button id="camera-reset-button" type="button" title="Reset camera"><span id="zoom-value">100%</span></button>
+              <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
+              <button id="pan-mode-button" class="pan-button" type="button" aria-label="Toggle drag-to-pan mode" aria-pressed="false">✥</button>
             </div>
           </div>
 
@@ -65,45 +74,53 @@
               id="game-canvas"
               tabindex="0"
               aria-describedby="map-help"
-              aria-label="Interactive hex map. Select a cyan unit, then select a highlighted tile to move or a red outlined unit to attack."
+              aria-label="Realtime hex growth map. Select a shape to arm it for mutation."
             ></canvas>
             <div class="sr-only" id="map-announcer" aria-live="polite" aria-atomic="true"></div>
-            <div class="turn-toast" id="turn-toast" role="status" aria-live="polite"></div>
-            <div class="map-key" aria-hidden="true">
-              <span><i class="move-key"></i> Move</span>
-              <span><i class="attack-key"></i> Attack</span>
-              <span><i class="relay-key"></i> Relay</span>
+            <div class="status-toast" id="status-toast" role="status" aria-live="polite"></div>
+            <div class="map-legend" aria-hidden="true">
+              <span><i class="growing-key"></i> Growing</span>
+              <span><i class="ready-key"></i> Ready</span>
+              <span><i class="armed-key"></i> Armed</span>
+              <span><i class="void-key"></i> Void</span>
             </div>
           </div>
 
           <div class="board-footer">
-            <p id="action-prompt"><kbd>1</kbd> Select a unit <span>→</span> <kbd>2</kbd> Move or attack <span>→</span> <kbd>3</kbd> End turn</p>
-            <button class="primary-button" id="end-turn-button" type="button">
-              End turn <span aria-hidden="true">→</span>
-            </button>
+            <p id="action-prompt"><kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle</p>
+            <div class="action-buttons">
+              <button class="action-button seed" id="seed-button" type="button">Seed thing <kbd>A</kbd></button>
+              <button class="action-button" id="clear-button" type="button">Clear <kbd>D</kbd></button>
+              <button class="action-button pause" id="pause-button" type="button" aria-pressed="false">Pause <span aria-hidden="true">Ⅱ</span></button>
+            </div>
           </div>
         </div>
 
-        <aside class="command-panel" aria-label="Command panel">
+        <aside class="systems-panel" aria-label="Realtime systems panel">
           <section class="panel-section selection-section">
             <div class="section-heading">
-              <span class="eyebrow">Field unit</span>
-              <span class="status-pill" id="unit-status">Awaiting orders</span>
+              <span class="eyebrow">Active selection</span>
+              <span class="status-pill" id="selection-status">Watching grid</span>
             </div>
             <div id="selection-content" class="selection-content"></div>
           </section>
 
-          <section class="panel-section objectives-section">
+          <section class="panel-section instructions-section">
             <div class="section-heading">
-              <span class="eyebrow">Relay network</span>
-              <span id="relay-count">0 / 3 held</span>
+              <span class="eyebrow">Original controls</span>
+              <span>live input</span>
             </div>
-            <div class="relay-list" id="relay-list"></div>
+            <dl class="control-list">
+              <div><dt><kbd>Left drag</kbd></dt><dd>Select across cells</dd></div>
+              <div><dt><kbd>Right drag</kbd></dt><dd>Pan · click clears</dd></div>
+              <div><dt><kbd>Wheel</kbd></dt><dd>Zoom under pointer</dd></div>
+              <div><dt><kbd>A</kbd> / <kbd>D</kbd></dt><dd>Seed / clear</dd></div>
+            </dl>
           </section>
 
           <section class="panel-section log-section">
             <div class="section-heading">
-              <span class="eyebrow">Tactical feed</span>
+              <span class="eyebrow">System feed</span>
               <span class="live-label"><i></i> Live</span>
             </div>
             <ol class="activity-log" id="activity-log" aria-live="polite"></ol>
@@ -112,21 +129,11 @@
       </section>
 
       <footer class="site-footer">
-        <p>A modern rebuild of a 2011 canvas experiment.</p>
-        <p id="map-help"><strong>Keyboard:</strong> Focus the map, move with arrow keys, and press Enter to act.</p>
-        <p><strong>Tip:</strong> Forest and ridge terrain cost 2 movement. Water is impassable.</p>
+        <p>Procedural forms grow, rotate, leave imprints, and occasionally echo into a neighbor.</p>
+        <p id="map-help"><strong>Keyboard:</strong> Focus the map, navigate with arrows, Enter to select, A to seed, D to clear, P to pause, and 0 to recenter.</p>
+        <p><strong>Camera:</strong> Right-drag, middle-drag, or hold Space and drag. Touch users can toggle ✥ pan mode.</p>
       </footer>
     </main>
-
-    <div class="result-overlay" id="result-overlay" hidden>
-      <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
-        <span class="result-icon" id="result-icon" aria-hidden="true">✦</span>
-        <span class="eyebrow" id="result-kicker">Mission complete</span>
-        <h2 id="result-title">Frontier secured</h2>
-        <p id="result-message"></p>
-        <button class="primary-button" id="play-again-button" type="button">Run it again <span>↻</span></button>
-      </div>
-    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

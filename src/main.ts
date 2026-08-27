@@ -1,7 +1,7 @@
 import "./styles.css";
-import { Game, ROLE_DETAILS, SIGNAL_TARGET, type Team, type Unit } from "./game";
 import { hexKey } from "./hex";
-import { BoardRenderer } from "./renderer";
+import { BoardRenderer, type Point } from "./renderer";
+import { Simulation, TICK_MS, type SelectionMode, type SimulationCell } from "./simulation";
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -9,260 +9,378 @@ function element<T extends HTMLElement>(id: string): T {
   return found as T;
 }
 
+interface PointerInteraction {
+  readonly pointerId: number;
+  readonly mode: "pan" | "select";
+  readonly button: number;
+  readonly selectionMode: SelectionMode;
+  readonly seenKeys: Set<string>;
+  lastPoint: Point;
+  moved: boolean;
+}
+
 const canvas = element<HTMLCanvasElement>("game-canvas");
 const canvasWrap = element<HTMLDivElement>("canvas-wrap");
-const roundValue = element<HTMLSpanElement>("round-value");
-const playerScore = element<HTMLSpanElement>("player-score");
-const enemyScore = element<HTMLSpanElement>("enemy-score");
-const relayCount = element<HTMLSpanElement>("relay-count");
-const relayList = element<HTMLDivElement>("relay-list");
+const sampleCount = element<HTMLSpanElement>("sample-count");
+const thingCount = element<HTMLSpanElement>("thing-count");
+const readyCount = element<HTMLSpanElement>("ready-count");
+const tickCount = element<HTMLSpanElement>("tick-count");
+const fpsValue = element<HTMLSpanElement>("fps-value");
+const clockIndicator = element<HTMLSpanElement>("clock-indicator");
+const clockLabel = element<HTMLSpanElement>("clock-label");
+const zoomValue = element<HTMLSpanElement>("zoom-value");
+const selectionStatus = element<HTMLSpanElement>("selection-status");
 const selectionContent = element<HTMLDivElement>("selection-content");
-const unitStatus = element<HTMLSpanElement>("unit-status");
 const activityLog = element<HTMLOListElement>("activity-log");
 const actionPrompt = element<HTMLParagraphElement>("action-prompt");
-const endTurnButton = element<HTMLButtonElement>("end-turn-button");
+const seedButton = element<HTMLButtonElement>("seed-button");
+const clearButton = element<HTMLButtonElement>("clear-button");
+const pauseButton = element<HTMLButtonElement>("pause-button");
 const resetButton = element<HTMLButtonElement>("reset-button");
-const playAgainButton = element<HTMLButtonElement>("play-again-button");
-const resultOverlay = element<HTMLDivElement>("result-overlay");
-const resultIcon = element<HTMLSpanElement>("result-icon");
-const resultKicker = element<HTMLSpanElement>("result-kicker");
-const resultTitle = element<HTMLHeadingElement>("result-title");
-const resultMessage = element<HTMLParagraphElement>("result-message");
-const turnToast = element<HTMLDivElement>("turn-toast");
+const zoomOutButton = element<HTMLButtonElement>("zoom-out-button");
+const zoomInButton = element<HTMLButtonElement>("zoom-in-button");
+const cameraResetButton = element<HTMLButtonElement>("camera-reset-button");
+const panModeButton = element<HTMLButtonElement>("pan-mode-button");
+const statusToast = element<HTMLDivElement>("status-toast");
 const mapAnnouncer = element<HTMLDivElement>("map-announcer");
 
-let game = new Game();
+let simulation = new Simulation();
 let hoveredKey: string | null = null;
 let keyboardMode = false;
+let panMode = false;
+let spacePressed = false;
+let pointerInteraction: PointerInteraction | null = null;
 let toastTimer = 0;
-let animationFrame: number | null = null;
+let previousFrame = performance.now();
+let fpsStart = previousFrame;
+let framesSinceSample = 0;
 const renderer = new BoardRenderer(canvas);
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-function teamLabel(team: Team | null): string {
-  if (team === "player") return "Northstar";
-  if (team === "enemy") return "Redline";
-  return "Neutral";
+function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-function cursorStartingKey(): string | null {
-  if (game.selectedUnit) return hexKey(game.selectedUnit);
-  const firstPlayerUnit = game.units.find(({ team }) => team === "player");
-  return firstPlayerUnit ? hexKey(firstPlayerUnit) : game.cells.keys().next().value ?? null;
+function pointFor(event: PointerEvent | WheelEvent): Point {
+  const bounds = canvas.getBoundingClientRect();
+  return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
 }
 
-function describeCell(key: string): string {
-  const cell = game.cellAt(key);
-  if (!cell) return "Unknown sector.";
-  const unit = game.unitAt(key);
-  const relay = cell.relay;
-  const contents = unit
-    ? `${teamLabel(unit.team)} ${ROLE_DETAILS[unit.role].label} ${unit.callsign}, ${unit.health} integrity.`
-    : "Empty.";
-  const relayDescription = relay ? `${relay.name} relay, ${teamLabel(relay.owner)} controlled.` : "";
-  return `Sector ${cell.column + 1}.${cell.row + 1}, ${cell.terrain}. ${contents} ${relayDescription}`.trim();
+function selectedCells(): SimulationCell[] {
+  return [...simulation.selectedKeys]
+    .map((key) => simulation.cellAt(key))
+    .filter((cell): cell is SimulationCell => Boolean(cell));
 }
 
-function announceKeyboardCursor(): void {
+function actionKeys(): string[] {
+  if (simulation.selectedKeys.size > 0) return [...simulation.selectedKeys];
+  return hoveredKey ? [hoveredKey] : [];
+}
+
+function describeCell(cell: SimulationCell): string {
+  if (!cell.buildable) return `Cell ${cell.column + 1}.${cell.row + 1}, void and unbuildable.`;
+  const ready = cell.things.filter(({ phase }) => phase === "ready").length;
+  const growing = cell.things.filter(({ phase }) => phase === "growing").length;
+  const waiting = cell.things.length - ready - growing;
+  const contents = cell.things.length === 0
+    ? "empty"
+    : `${plural(waiting, "waiting thing")}, ${plural(growing, "growing thing")}, ${plural(ready, "ready thing")}`;
+  return `Cell ${cell.column + 1}.${cell.row + 1}, ${contents}, ${plural(cell.imprints.length, "imprint")}.`;
+}
+
+function cursorStartingKey(): string {
+  const occupied = [...simulation.cells.values()].find(({ things }) => things.length > 0);
+  return occupied?.key ?? hexKey({ column: 0, row: 0 });
+}
+
+function announceCursor(): void {
   if (!keyboardMode || !hoveredKey) return;
-  mapAnnouncer.textContent = `${describeCell(hoveredKey)} Press Enter to act.`;
+  const cell = simulation.cellAt(hoveredKey);
+  if (cell) mapAnnouncer.textContent = `${describeCell(cell)} Press Enter to select.`;
 }
 
 function updateCanvasDescription(): void {
-  const selected = game.selectedUnit;
-  const selectionDescription = selected
-    ? `${selected.callsign} selected with ${game.reachableCells(selected).size} movement sectors and ${game.attackableUnits(selected).length} targets available.`
-    : "No unit selected.";
-  const cursorDescription = keyboardMode && hoveredKey ? ` Cursor: ${describeCell(hoveredKey)}` : "";
+  const selection = simulation.selectedKeys.size === 0
+    ? "No cells selected."
+    : `${plural(simulation.selectedKeys.size, "cell")} selected.`;
+  const cursor = keyboardMode && hoveredKey
+    ? ` Cursor: ${describeCell(simulation.cellAt(hoveredKey) ?? simulation.cellAt(cursorStartingKey())!)}`
+    : "";
   canvas.setAttribute(
     "aria-label",
-    `Interactive hex map. ${selectionDescription}${cursorDescription} Use arrow keys to move the cursor and Enter to act.`,
+    `Realtime hex growth map. ${selection}${cursor} Use arrow keys to move, Enter to select, A to seed, and D to clear.`,
   );
 }
 
+function renderSelection(): void {
+  const cells = selectedCells();
+  selectionStatus.textContent = cells.length === 0 ? "Watching grid" : `${cells.length} armed`;
+  selectionStatus.className = `status-pill${cells.length > 0 ? " armed" : ""}`;
+
+  if (cells.length === 0) {
+    selectionContent.innerHTML = `
+      <div class="empty-selection">
+        <span class="empty-symbol" aria-hidden="true">⌁</span>
+        <h2>No cells selected</h2>
+        <p>Select a growing shape to arm it. When it turns red, the next world tick picks its mutation.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const things = cells.reduce((total, cell) => total + cell.things.length, 0);
+  const ready = cells.reduce(
+    (total, cell) => total + cell.things.filter(({ phase }) => phase === "ready").length,
+    0,
+  );
+  const imprints = cells.reduce((total, cell) => total + cell.imprints.length, 0);
+  const singleCell = cells.length === 1 ? cells[0] : undefined;
+  const title = singleCell ? `Cell ${singleCell.column + 1}.${singleCell.row + 1}` : `${cells.length} cells linked`;
+  const state = !cells.every(({ buildable }) => buildable)
+    ? "Selection includes the void. It cannot hold a seed."
+    : ready > 0
+      ? "Ready mutation queued for the next 250 ms tick."
+      : things > 0
+        ? "Selection is armed and will remain live while growth continues."
+        : "Empty cells selected. Press A to seed them."
+  selectionContent.innerHTML = `
+    <div class="selection-profile">
+      <span class="selection-glyph" aria-hidden="true">${ready > 0 ? "◆" : "◇"}</span>
+      <div><span>Realtime selection</span><h2>${title}</h2></div>
+    </div>
+    <p class="selection-note">${state}</p>
+    <dl class="selection-stats">
+      <div><dt>Things</dt><dd>${things}</dd></div>
+      <div><dt>Ready</dt><dd>${ready}</dd></div>
+      <div><dt>Imprints</dt><dd>${imprints}</dd></div>
+    </dl>
+  `;
+}
+
+function updateActionPrompt(): void {
+  if (simulation.paused) {
+    actionPrompt.innerHTML = `<strong>World clock paused.</strong> Resume to continue growth and queued picks.`;
+    return;
+  }
+
+  const cells = selectedCells();
+  const ready = cells.reduce(
+    (total, cell) => total + cell.things.filter(({ phase }) => phase === "ready").length,
+    0,
+  );
+  if (ready > 0) {
+    actionPrompt.innerHTML = `<strong>${plural(ready, "mutation")} ready.</strong> The clock will pick ${ready === 1 ? "it" : "them"} on the next tick.`;
+  } else if (cells.some(({ things }) => things.length > 0)) {
+    actionPrompt.innerHTML = `<strong>Selection armed.</strong> Growth is continuous; red shapes are picked automatically.`;
+  } else if (cells.length > 0) {
+    actionPrompt.innerHTML = `<strong>${plural(cells.length, "empty cell")} selected.</strong> Press <kbd>A</kbd> to seed.`;
+  } else {
+    actionPrompt.innerHTML = `<kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle`;
+  }
+}
+
+function syncCamera(): void {
+  zoomValue.textContent = `${renderer.camera.zoomPercent}%`;
+}
+
+function syncInterface(): void {
+  sampleCount.textContent = String(simulation.samples).padStart(3, "0");
+  thingCount.textContent = String(simulation.thingCount);
+  readyCount.textContent = String(simulation.readyCount);
+  tickCount.textContent = String(simulation.ticks).padStart(5, "0");
+  clockIndicator.className = `clock-indicator${simulation.paused ? " paused" : ""}`;
+  clockLabel.textContent = simulation.paused ? "PAUSED" : `LIVE · ${1000 / TICK_MS} HZ`;
+  pauseButton.innerHTML = simulation.paused
+    ? `Resume <span aria-hidden="true">▶</span>`
+    : `Pause <span aria-hidden="true">Ⅱ</span>`;
+  pauseButton.setAttribute("aria-pressed", String(simulation.paused));
+  renderSelection();
+  updateActionPrompt();
+  activityLog.innerHTML = simulation.activity
+    .map((message, index) => `<li class="${index === 0 ? "latest" : ""}"><i></i><span>${message}</span></li>`)
+    .join("");
+  updateCanvasDescription();
+  syncCamera();
+}
+
+function showToast(message: string): void {
+  window.clearTimeout(toastTimer);
+  statusToast.textContent = message;
+  statusToast.classList.add("visible");
+  toastTimer = window.setTimeout(() => statusToast.classList.remove("visible"), 1500);
+}
+
+function selectCell(cell: SimulationCell, mode: SelectionMode): void {
+  simulation.selectCell(cell.key, mode);
+  syncInterface();
+}
+
 function moveKeyboardCursor(key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"): void {
-  const currentKey = hoveredKey ?? cursorStartingKey();
-  const current = currentKey ? game.cellAt(currentKey) : undefined;
+  const current = simulation.cellAt(hoveredKey ?? cursorStartingKey());
   if (!current) return;
 
   let destination = key === "ArrowLeft"
-    ? game.cellAt({ column: current.column - 1, row: current.row })
+    ? simulation.cellAt({ column: current.column - 1, row: current.row })
     : key === "ArrowRight"
-      ? game.cellAt({ column: current.column + 1, row: current.row })
+      ? simulation.cellAt({ column: current.column + 1, row: current.row })
       : undefined;
 
   if (!destination && (key === "ArrowUp" || key === "ArrowDown")) {
     const targetRow = current.row + (key === "ArrowUp" ? -1 : 1);
-    const currentVisualColumn = current.column + 0.5 * (current.row & 1);
-    destination = [...game.cells.values()]
+    const visualColumn = current.column + 0.5 * (current.row & 1);
+    destination = [...simulation.cells.values()]
       .filter(({ row }) => row === targetRow)
       .sort((a, b) => {
-        const aDistance = Math.abs(a.column + 0.5 * (a.row & 1) - currentVisualColumn);
-        const bDistance = Math.abs(b.column + 0.5 * (b.row & 1) - currentVisualColumn);
+        const aDistance = Math.abs(a.column + 0.5 * (a.row & 1) - visualColumn);
+        const bDistance = Math.abs(b.column + 0.5 * (b.row & 1) - visualColumn);
         return aDistance - bDistance || a.column - b.column;
       })[0];
   }
 
   if (destination) hoveredKey = destination.key;
   updateCanvasDescription();
-  announceKeyboardCursor();
-  renderer.draw(game, hoveredKey, performance.now());
+  announceCursor();
 }
 
-function activateCell(key: string): void {
-  const previousMessage = game.activity[0];
-  game.selectCell(key);
-  syncInterface();
-  if (game.activity[0] !== previousMessage) showToast(game.activity[0] ?? "ORDER CONFIRMED");
-  announceKeyboardCursor();
-}
-
-function renderSelection(unit: Unit | null): void {
-  if (!unit) {
-    unitStatus.textContent = "Awaiting orders";
-    unitStatus.className = "status-pill";
-    selectionContent.innerHTML = `
-      <div class="empty-selection">
-        <span class="empty-unit-icon" aria-hidden="true">⌁</span>
-        <h2>No unit selected</h2>
-        <p>Choose a cyan unit on the field to inspect its range and issue orders.</p>
-      </div>
-    `;
+function runSeedAction(): void {
+  const keys = actionKeys();
+  if (keys.length === 0) {
+    showToast("SELECT OR HOVER A CELL");
     return;
   }
-
-  const role = ROLE_DETAILS[unit.role];
-  const hasMove = !unit.moved;
-  const hasAttack = !unit.attacked;
-  unitStatus.textContent = hasMove || hasAttack ? "Ready" : "Orders complete";
-  unitStatus.className = `status-pill ${hasMove || hasAttack ? "ready" : "spent"}`;
-  selectionContent.innerHTML = `
-    <div class="unit-profile">
-      <div class="unit-avatar role-${unit.role}" aria-hidden="true">${role.symbol}</div>
-      <div>
-        <span>${role.label} · ${role.summary}</span>
-        <h2>${unit.callsign}</h2>
-      </div>
-    </div>
-    <div class="health-label"><span>Integrity</span><b>${unit.health} / ${unit.maxHealth}</b></div>
-    <div class="health-track"><i style="width:${String((unit.health / unit.maxHealth) * 100)}%"></i></div>
-    <dl class="unit-stats">
-      <div><dt>Move</dt><dd>${unit.movement}</dd></div>
-      <div><dt>Range</dt><dd>${unit.range}</dd></div>
-      <div><dt>Power</dt><dd>${unit.damage}</dd></div>
-    </dl>
-    <div class="action-state">
-      <span class="${hasMove ? "available" : "used"}"><i>${hasMove ? "✓" : "×"}</i> Move ${hasMove ? "ready" : "used"}</span>
-      <span class="${hasAttack ? "available" : "used"}"><i>${hasAttack ? "✓" : "×"}</i> Attack ${hasAttack ? "ready" : "used"}</span>
-    </div>
-  `;
+  const seeded = simulation.seedCells(keys);
+  syncInterface();
+  showToast(seeded > 0 ? `SEEDED ${plural(seeded, "THING").toUpperCase()}` : "NO OPEN SEED SLOTS");
 }
 
-function syncInterface(): void {
-  roundValue.textContent = String(game.round).padStart(2, "0");
-  playerScore.textContent = `${game.playerSignal} / ${SIGNAL_TARGET}`;
-  enemyScore.textContent = `${game.enemySignal} / ${SIGNAL_TARGET}`;
-
-  const playerRelays = game.relays.filter(({ owner }) => owner === "player").length;
-  relayCount.textContent = `${playerRelays} / ${game.relays.length} held`;
-  relayList.innerHTML = game.relays
-    .map((relay, index) => `
-      <div class="relay-item ${relay.owner ?? "neutral"}">
-        <span class="relay-index">0${index + 1}</span>
-        <span class="relay-glyph" aria-hidden="true"><i></i></span>
-        <span><b>${relay.name}</b><small>${teamLabel(relay.owner)} link</small></span>
-        <i class="relay-owner"></i>
-      </div>
-    `)
-    .join("");
-
-  renderSelection(game.selectedUnit);
-  activityLog.innerHTML = game.activity
-    .map((message, index) => `<li class="${index === 0 ? "latest" : ""}"><i></i><span>${message}</span></li>`)
-    .join("");
-
-  const selected = game.selectedUnit;
-  if (selected) {
-    const moves = game.reachableCells(selected).size;
-    const targets = game.attackableUnits(selected).length;
-    actionPrompt.innerHTML = targets > 0
-      ? `<strong>${targets} target${targets === 1 ? "" : "s"} in range.</strong> Select a red outlined unit to strike.`
-      : moves > 0
-        ? `<strong>${moves} sectors in range.</strong> Select a cyan outlined hex to advance.`
-        : "This unit has no available orders. Select another unit or end the turn.";
-  } else {
-    actionPrompt.innerHTML = `<kbd>1</kbd> Select a unit <span>→</span> <kbd>2</kbd> Move or attack <span>→</span> <kbd>3</kbd> End turn`;
+function runClearAction(): void {
+  const keys = actionKeys();
+  if (keys.length === 0) {
+    showToast("SELECT OR HOVER A CELL");
+    return;
   }
-
-  endTurnButton.disabled = game.status !== "playing";
-  updateCanvasDescription();
-
-  if (game.status !== "playing") showResult();
-  renderer.draw(game, hoveredKey, performance.now());
+  const cleared = simulation.clearCells(keys);
+  syncInterface();
+  showToast(cleared > 0 ? `CLEARED ${plural(cleared, "CELL").toUpperCase()}` : "NOTHING TO CLEAR");
 }
 
-function showToast(message: string): void {
-  window.clearTimeout(toastTimer);
-  turnToast.textContent = message;
-  turnToast.classList.add("visible");
-  toastTimer = window.setTimeout(() => turnToast.classList.remove("visible"), 1700);
+function togglePause(): void {
+  simulation.setPaused(!simulation.paused);
+  previousFrame = performance.now();
+  syncInterface();
+  showToast(simulation.paused ? "WORLD CLOCK PAUSED" : "WORLD CLOCK LIVE");
 }
 
-function showResult(): void {
-  const won = game.status === "playerWon";
-  resultOverlay.hidden = false;
-  resultOverlay.className = `result-overlay ${won ? "victory" : "defeat"}`;
-  resultIcon.textContent = won ? "✦" : "×";
-  resultKicker.textContent = won ? "Mission complete" : "Connection lost";
-  resultTitle.textContent = won ? "Frontier secured" : "Signal intercepted";
-  resultMessage.textContent = game.resultMessage;
-  window.setTimeout(() => playAgainButton.focus(), 100);
-}
-
-function resetGame(): void {
-  game = new Game();
+function resetWorld(): void {
+  simulation = new Simulation();
   hoveredKey = null;
   keyboardMode = false;
-  resultOverlay.hidden = true;
-  resultOverlay.className = "result-overlay";
-  renderer.resize(game);
+  pointerInteraction = null;
+  renderer.resetCamera(simulation);
+  previousFrame = performance.now();
   syncInterface();
-  showToast("OPERATION RESTARTED");
+  showToast("LATTICE RESTARTED");
   canvas.focus();
 }
 
-function pointerPosition(event: PointerEvent): { x: number; y: number } {
-  const bounds = canvas.getBoundingClientRect();
-  return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+function updateHover(point: Point): void {
+  hoveredKey = renderer.cellAtPoint(simulation, point.x, point.y)?.key ?? null;
+  canvas.classList.toggle("interactive", hoveredKey !== null && !panMode && !spacePressed);
 }
 
-canvas.addEventListener("pointermove", (event) => {
-  const wasKeyboardMode = keyboardMode;
+canvas.addEventListener("pointerdown", (event) => {
+  if (!event.isPrimary || ![0, 1, 2].includes(event.button)) return;
+  event.preventDefault();
+  canvas.focus();
   keyboardMode = false;
-  const { x, y } = pointerPosition(event);
-  const nextHoveredKey = renderer.cellAtPoint(game, x, y)?.key ?? null;
-  if (nextHoveredKey !== hoveredKey) {
-    hoveredKey = nextHoveredKey;
-    renderer.draw(game, hoveredKey, performance.now());
+  const point = pointFor(event);
+  const shouldPan = event.button === 1 || event.button === 2 || panMode || (spacePressed && event.button === 0);
+  const selectionMode: SelectionMode = event.ctrlKey || event.metaKey
+    ? "toggle"
+    : event.shiftKey
+      ? "add"
+      : "replace";
+  pointerInteraction = {
+    pointerId: event.pointerId,
+    mode: shouldPan ? "pan" : "select",
+    button: event.button,
+    selectionMode,
+    seenKeys: new Set<string>(),
+    lastPoint: point,
+    moved: false,
+  };
+  canvas.setPointerCapture(event.pointerId);
+  canvas.classList.toggle("panning", shouldPan);
+
+  if (!shouldPan) {
+    const cell = renderer.cellAtPoint(simulation, point.x, point.y);
+    if (cell) {
+      pointerInteraction.seenKeys.add(cell.key);
+      selectCell(cell, selectionMode);
+    } else if (selectionMode === "replace") {
+      simulation.clearSelection();
+      syncInterface();
+    }
   }
-  if (wasKeyboardMode) updateCanvasDescription();
-  canvas.classList.toggle("interactive", hoveredKey !== null);
 });
 
+canvas.addEventListener("pointermove", (event) => {
+  if (!event.isPrimary) return;
+  const point = pointFor(event);
+  const interaction = pointerInteraction;
+  if (!interaction || interaction.pointerId !== event.pointerId) {
+    keyboardMode = false;
+    updateHover(point);
+    return;
+  }
+
+  const horizontal = point.x - interaction.lastPoint.x;
+  const vertical = point.y - interaction.lastPoint.y;
+  if (Math.abs(horizontal) + Math.abs(vertical) > 1.5) interaction.moved = true;
+  interaction.lastPoint = point;
+
+  if (interaction.mode === "pan") {
+    renderer.panBy(horizontal, vertical);
+    syncCamera();
+    return;
+  }
+
+  const cell = renderer.cellAtPoint(simulation, point.x, point.y);
+  if (!cell || interaction.seenKeys.has(cell.key)) return;
+  interaction.seenKeys.add(cell.key);
+  const dragMode = interaction.selectionMode === "toggle" ? "toggle" : "add";
+  selectCell(cell, dragMode);
+});
+
+function finishPointer(event: PointerEvent): void {
+  const interaction = pointerInteraction;
+  if (!interaction || interaction.pointerId !== event.pointerId) return;
+  if (interaction.mode === "pan" && interaction.button === 2 && !interaction.moved) {
+    simulation.clearSelection();
+    syncInterface();
+  }
+  pointerInteraction = null;
+  canvas.classList.remove("panning");
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  updateHover(pointFor(event));
+}
+
+canvas.addEventListener("pointerup", finishPointer);
+canvas.addEventListener("pointercancel", finishPointer);
 canvas.addEventListener("pointerleave", () => {
+  if (pointerInteraction) return;
   hoveredKey = null;
   canvas.classList.remove("interactive");
-  renderer.draw(game, hoveredKey, performance.now());
 });
+canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
-canvas.addEventListener("pointerup", (event) => {
-  if (!event.isPrimary || event.button !== 0) return;
-  keyboardMode = false;
-  const { x, y } = pointerPosition(event);
-  const cell = renderer.cellAtPoint(game, x, y);
-  if (!cell) return;
-  activateCell(cell.key);
-});
+canvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  const point = pointFor(event);
+  renderer.zoomAt(Math.exp(-event.deltaY * 0.0012), point);
+  updateHover(point);
+  syncCamera();
+}, { passive: false });
 
 canvas.addEventListener("keydown", (event) => {
   keyboardMode = true;
@@ -271,58 +389,112 @@ canvas.addEventListener("keydown", (event) => {
     moveKeyboardCursor(event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown");
     return;
   }
-  if ((event.key === "Enter" || event.key === " ") && hoveredKey) {
+  if (event.key === "Enter" && hoveredKey) {
     event.preventDefault();
-    activateCell(hoveredKey);
+    const mode: SelectionMode = event.ctrlKey || event.metaKey ? "toggle" : event.shiftKey ? "add" : "replace";
+    const cell = simulation.cellAt(hoveredKey);
+    if (cell) selectCell(cell, mode);
+    announceCursor();
+    return;
+  }
+  if (event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    runSeedAction();
+    return;
+  }
+  if (event.key.toLowerCase() === "d") {
+    event.preventDefault();
+    runClearAction();
+    return;
+  }
+  if (event.key.toLowerCase() === "p") {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
+  if (event.key === "0") {
+    event.preventDefault();
+    renderer.resetCamera(simulation);
+    syncCamera();
     return;
   }
   if (event.key === "Escape") {
-    game.selectedUnitId = null;
+    simulation.clearSelection();
     syncInterface();
-    announceKeyboardCursor();
+    return;
   }
+  if (event.key === " ") {
+    event.preventDefault();
+    spacePressed = true;
+    canvas.classList.add("pan-ready");
+  }
+});
+
+window.addEventListener("keyup", (event) => {
+  if (event.key !== " ") return;
+  spacePressed = false;
+  canvas.classList.remove("pan-ready");
+});
+
+window.addEventListener("blur", () => {
+  spacePressed = false;
+  canvas.classList.remove("pan-ready", "panning");
 });
 
 canvas.addEventListener("focus", () => {
   keyboardMode = true;
   hoveredKey ??= cursorStartingKey();
   updateCanvasDescription();
-  announceKeyboardCursor();
-  renderer.draw(game, hoveredKey, performance.now());
+  announceCursor();
 });
 
-endTurnButton.addEventListener("click", () => {
-  const priorRound = game.round;
-  game.endPlayerTurn();
-  syncInterface();
-  if (game.status === "playing" && game.round > priorRound) showToast(`ROUND ${String(game.round).padStart(2, "0")} · NORTHSTAR`);
-});
+seedButton.addEventListener("click", runSeedAction);
+clearButton.addEventListener("click", runClearAction);
+pauseButton.addEventListener("click", togglePause);
+resetButton.addEventListener("click", resetWorld);
 
-resetButton.addEventListener("click", resetGame);
-playAgainButton.addEventListener("click", resetGame);
+function zoomFromCenter(factor: number): void {
+  renderer.zoomAt(factor, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 });
+  syncCamera();
+}
+
+zoomOutButton.addEventListener("click", () => zoomFromCenter(0.82));
+zoomInButton.addEventListener("click", () => zoomFromCenter(1.22));
+cameraResetButton.addEventListener("click", () => {
+  renderer.resetCamera(simulation);
+  syncCamera();
+  showToast("CAMERA RECENTERED");
+});
+panModeButton.addEventListener("click", () => {
+  panMode = !panMode;
+  panModeButton.setAttribute("aria-pressed", String(panMode));
+  panModeButton.classList.toggle("active", panMode);
+  canvas.classList.toggle("pan-ready", panMode);
+});
 
 const resizeObserver = new ResizeObserver(() => {
-  renderer.resize(game);
-  renderer.draw(game, hoveredKey, performance.now());
+  renderer.resize(simulation);
+  syncCamera();
 });
 resizeObserver.observe(canvasWrap);
 
 function frame(time: number): void {
-  renderer.draw(game, hoveredKey, time);
-  animationFrame = window.requestAnimationFrame(frame);
-}
+  const elapsed = Math.min(1000, Math.max(0, time - previousFrame));
+  previousFrame = time;
+  const processedTicks = simulation.advance(elapsed);
+  renderer.draw(simulation, hoveredKey, time, !reducedMotionQuery.matches && !simulation.paused);
 
-function syncAnimationPreference(): void {
-  if (reducedMotionQuery.matches) {
-    if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
-    animationFrame = null;
-    renderer.draw(game, hoveredKey, performance.now());
-  } else if (animationFrame === null) {
-    animationFrame = window.requestAnimationFrame(frame);
+  if (processedTicks > 0) syncInterface();
+  framesSinceSample += 1;
+  const fpsElapsed = time - fpsStart;
+  if (fpsElapsed >= 500) {
+    fpsValue.textContent = String(Math.round((framesSinceSample * 1000) / fpsElapsed));
+    framesSinceSample = 0;
+    fpsStart = time;
   }
+  window.requestAnimationFrame(frame);
 }
 
-renderer.resize(game);
+renderer.resize(simulation);
 syncInterface();
-reducedMotionQuery.addEventListener("change", syncAnimationPreference);
-syncAnimationPreference();
+window.requestAnimationFrame(frame);
