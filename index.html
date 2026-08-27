@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Signal Frontier, a compact turn-based hex strategy demo."
+    />
+    <meta name="theme-color" content="#071214" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><path fill=%22%23b8f34a%22 d=%22M32 3 57 17v30L32 61 7 47V17z%22/><path fill=%22%23071214%22 d=%22M32 13 48 22v20l-16 9-16-9V22z%22/></svg>"
+    />
+    <title>Signal Frontier — Hex Strategy</title>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Signal Frontier home">
+          <span class="brand-mark" aria-hidden="true"><i></i></span>
+          <span>
+            <b>Signal Frontier</b>
+            <small>Hex strategy field test</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="build-badge"><i></i> TS7 native build</span>
+          <button class="icon-button" id="reset-button" type="button" title="Restart the scenario">
+            <span aria-hidden="true">↻</span>
+            <span>Restart</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="mission-bar" aria-label="Mission status">
+        <div>
+          <span class="eyebrow">Operation 01</span>
+          <h1>Light the frontier.</h1>
+        </div>
+        <p>Secure relay stations and reach <strong>6 signal</strong> before the rival network does.</p>
+        <div class="round-counter">
+          <span>Round</span>
+          <b id="round-value">01</b>
+        </div>
+      </section>
+
+      <section class="game-layout">
+        <div class="board-card">
+          <div class="board-toolbar">
+            <div class="faction-score player-score">
+              <span class="faction-dot"></span>
+              <span><small>Northstar</small><b id="player-score">0 / 6</b></span>
+            </div>
+            <div class="versus-mark" aria-hidden="true"><span></span> SIGNAL <span></span></div>
+            <div class="faction-score enemy-score">
+              <span><small>Redline</small><b id="enemy-score">0 / 6</b></span>
+              <span class="faction-dot"></span>
+            </div>
+          </div>
+
+          <div class="canvas-wrap" id="canvas-wrap">
+            <canvas
+              id="game-canvas"
+              tabindex="0"
+              aria-label="Interactive hex map. Select a cyan unit, then select a highlighted tile to move or a red outlined unit to attack."
+            ></canvas>
+            <div class="turn-toast" id="turn-toast" role="status" aria-live="polite"></div>
+            <div class="map-key" aria-hidden="true">
+              <span><i class="move-key"></i> Move</span>
+              <span><i class="attack-key"></i> Attack</span>
+              <span><i class="relay-key"></i> Relay</span>
+            </div>
+          </div>
+
+          <div class="board-footer">
+            <p id="action-prompt"><kbd>1</kbd> Select a unit <span>→</span> <kbd>2</kbd> Move or attack <span>→</span> <kbd>3</kbd> End turn</p>
+            <button class="primary-button" id="end-turn-button" type="button">
+              End turn <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </div>
+
+        <aside class="command-panel" aria-label="Command panel">
+          <section class="panel-section selection-section">
+            <div class="section-heading">
+              <span class="eyebrow">Field unit</span>
+              <span class="status-pill" id="unit-status">Awaiting orders</span>
+            </div>
+            <div id="selection-content" class="selection-content"></div>
+          </section>
+
+          <section class="panel-section objectives-section">
+            <div class="section-heading">
+              <span class="eyebrow">Relay network</span>
+              <span id="relay-count">0 / 3 held</span>
+            </div>
+            <div class="relay-list" id="relay-list"></div>
+          </section>
+
+          <section class="panel-section log-section">
+            <div class="section-heading">
+              <span class="eyebrow">Tactical feed</span>
+              <span class="live-label"><i></i> Live</span>
+            </div>
+            <ol class="activity-log" id="activity-log" aria-live="polite"></ol>
+          </section>
+        </aside>
+      </section>
+
+      <footer class="site-footer">
+        <p>A modern rebuild of a 2011 canvas experiment.</p>
+        <p><strong>Tip:</strong> Forest and ridge terrain cost 2 movement. Water is impassable.</p>
+      </footer>
+    </main>
+
+    <div class="result-overlay" id="result-overlay" hidden>
+      <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
+        <span class="result-icon" id="result-icon" aria-hidden="true">✦</span>
+        <span class="eyebrow" id="result-kicker">Mission complete</span>
+        <h2 id="result-title">Frontier secured</h2>
+        <p id="result-message"></p>
+        <button class="primary-button" id="play-again-button" type="button">Run it again <span>↻</span></button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
