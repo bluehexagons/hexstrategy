@@ -1,12 +1,19 @@
 import { ROLE_DETAILS, type Game, type HexCell, type Team, type Terrain, type Unit } from "./game";
 import { hexKey, type HexCoordinate } from "./hex";
 
-interface Point {
+export interface Point {
   readonly x: number;
   readonly y: number;
 }
 
 const SQRT_THREE = Math.sqrt(3);
+
+export function isPointInHex(point: Point, center: Point, radius: number): boolean {
+  const horizontalDistance = Math.abs(point.x - center.x);
+  const verticalDistance = Math.abs(point.y - center.y);
+  return horizontalDistance <= (SQRT_THREE / 2) * radius
+    && SQRT_THREE * verticalDistance + horizontalDistance <= SQRT_THREE * radius;
+}
 const TERRAIN_COLORS: Readonly<Record<Terrain, { fill: string; stroke: string }>> = {
   plain: { fill: "#132628", stroke: "#264246" },
   forest: { fill: "#16342d", stroke: "#2b5144" },
@@ -78,8 +85,7 @@ export class BoardRenderer {
 
   cellAtPoint(game: Game, x: number, y: number): HexCell | null {
     for (const cell of game.cells.values()) {
-      this.hexPath(this.center(cell), this.size * 0.96);
-      if (this.context.isPointInPath(x, y)) return cell;
+      if (isPointInHex({ x, y }, this.center(cell), this.size * 0.96)) return cell;
     }
     return null;
   }
