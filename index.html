@@ -12,7 +12,7 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><path fill=%22%23b7ef53%22 d=%22M32 3 57 17v30L32 61 7 47V17z%22/><path fill=%22%23080d0e%22 d=%22M32 12 49 22v20L32 52 15 42V22z%22/><circle cx=%2232%22 cy=%2232%22 r=%226%22 fill=%22%23ff6769%22/></svg>"
     />
-    <title>Hex Strategy — Realtime Systems Test</title>
+    <title>Hex Strategy — Abstract Living Grid</title>
   </head>
   <body>
     <div class="scanlines" aria-hidden="true"></div>
@@ -22,7 +22,7 @@
           <span class="brand-mark" aria-hidden="true"><i></i></span>
           <span>
             <b>Hex Strategy</b>
-            <small>Realtime systems test</small>
+            <small>Abstract living grid</small>
           </span>
         </a>
         <div class="topbar-actions">
@@ -41,11 +41,11 @@
       <section class="mission-bar" aria-label="Simulation status">
         <div>
           <span class="eyebrow">96 × 64 procedural lattice · circa 2008–2011</span>
-          <h1>The grid never waits.</h1>
+          <h1>Touch the pattern. Change the next tick.</h1>
         </div>
         <p>
-          Energy diffuses. Sources produce motes. Genomes mutate. Tap or click a growth and its
-          <strong>red</strong> state becomes the next generation.
+          Every hex can be selected. Seed a form, pulse its neighbors, or arm a growing shape. A
+          <strong>red</strong> shape becomes a new variation on the next tick.
         </p>
         <div class="sample-counter">
           <span>Picked samples</span>
@@ -98,6 +98,7 @@
             ></canvas>
             <div class="sr-only" id="map-announcer" aria-live="polite" aria-atomic="true"></div>
             <div class="status-toast" id="status-toast" role="status" aria-live="polite"></div>
+            <div class="cell-hint" id="cell-hint" aria-hidden="true"></div>
             <div class="touch-guide" role="note" aria-label="Touch controls">
               <b>Touch</b><span>Tap select</span><i></i><span>Drag pan</span><i></i
               ><span>Pinch zoom</span>
@@ -116,6 +117,7 @@
               <span><i class="ready-key"></i> Ready</span>
               <span><i class="source-key"></i> Source</span>
               <span><i class="mote-key"></i> Mote</span>
+              <span><i class="pulse-key"></i> Pulse</span>
             </div>
           </div>
 
@@ -134,8 +136,21 @@
               >
                 <b aria-hidden="true">＋</b><span>Multi</span>
               </button>
-              <button class="action-button seed" id="seed-button" type="button">
-                Seed thing <kbd>A</kbd>
+              <button
+                class="action-button seed"
+                id="seed-button"
+                type="button"
+                title="Add a new form to selected or hovered cells"
+              >
+                Seed <kbd>A</kbd>
+              </button>
+              <button
+                class="action-button pulse"
+                id="pulse-button"
+                type="button"
+                title="Add energy to selected cells and their neighbors; sources release a mote"
+              >
+                Pulse <kbd>S</kbd>
               </button>
               <button class="action-button" id="clear-button" type="button">
                 Clear <kbd>D</kbd>
@@ -169,7 +184,7 @@
             <dl class="control-list">
               <div>
                 <dt><kbd>Tap</kbd> / <kbd>Click</kbd></dt>
-                <dd>Select a cell</dd>
+                <dd>Select any hex, even an empty one</dd>
               </div>
               <div>
                 <dt><kbd>Touch drag</kbd> / <kbd>Right drag</kbd></dt>
@@ -182,6 +197,10 @@
               <div>
                 <dt><kbd>Multi</kbd></dt>
                 <dd>Toggle several cells</dd>
+              </div>
+              <div>
+                <dt><kbd>Pulse</kbd> / <kbd>S</kbd></dt>
+                <dd>Brighten nearby cells; a source releases a mote</dd>
               </div>
               <div>
                 <dt><kbd>Overview</kbd></dt>
@@ -201,17 +220,14 @@
       </section>
 
       <footer class="site-footer">
-        <p>
-          6,144 linked cells run energy diffusion, production cycles, autonomous movement,
-          colonization, and inherited mutation.
-        </p>
+        <p>6,144 linked cells diffuse energy, release motes, echo pulses, and vary their forms.</p>
         <p id="map-help">
           <strong>Touch:</strong> Tap to select, drag to pan, pinch to zoom, and use Multi to add
-          cells. All actions have on-screen buttons.
+          cells. Seed adds a form; Pulse brightens a small neighborhood.
         </p>
         <p>
           <strong>Mouse + keyboard:</strong> Right-drag or Space-drag to pan; wheel to zoom; A seed;
-          D clear; P pause; 0 recenter.
+          S pulse; D clear; P pause; 0 recenter.
         </p>
       </footer>
     </main>

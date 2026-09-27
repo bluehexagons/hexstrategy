@@ -87,6 +87,7 @@ export interface SimulationCell extends HexCoordinate {
   readonly things: Thing[];
   readonly imprints: Imprint[];
   energy: number;
+  resonance: number;
   generator: Generator | null;
 }
 
@@ -231,7 +232,7 @@ export class Simulation {
     this.activity = [
       `Procedural lattice ${this.seedLabel} online: ${MAP_COLUMNS} × ${MAP_ROWS} cells.`,
       "Sources diffuse energy and release autonomous motes.",
-      "Select a red growth to pick its mutation.",
+      "Select a form to pick its next variation when red. Pulse to brighten nearby cells.",
     ];
 
     this.generateCells();
@@ -332,6 +333,27 @@ export class Simulation {
     return cleared;
   }
 
+  pulseCells(keys: Iterable<string>): number {
+    let pulsed = 0;
+    for (const key of new Set(keys)) {
+      const cell = this.cellAt(key);
+      if (!cell?.buildable) continue;
+      pulsed += 1;
+      cell.energy = clamp(cell.energy + 0.32);
+      cell.resonance = 1;
+      for (const coordinate of neighbors(cell)) {
+        const neighbor = this.cellAt(coordinate);
+        if (!neighbor?.buildable) continue;
+        neighbor.energy = clamp(neighbor.energy + 0.16);
+        neighbor.resonance = Math.max(neighbor.resonance, 0.6);
+      }
+      if (cell.generator) this.addMote(cell, cell.generator.hue);
+    }
+    if (pulsed > 0)
+      this.log(`Pulsed ${pulsed} ${pulsed === 1 ? "cell" : "cells"}; adjacent cells echoed.`);
+    return pulsed;
+  }
+
   advance(elapsedMs: number): number {
     if (this.paused || elapsedMs <= 0) return 0;
     this.accumulatorMs += elapsedMs;
@@ -382,6 +404,7 @@ export class Simulation {
           elevation,
           moisture,
           energy: buildable ? clamp(moisture * 0.12 + (terrain === "basin" ? 0.06 : 0)) : 0,
+          resonance: 0,
           generator: null,
           things: [],
           imprints: [],
@@ -448,6 +471,9 @@ export class Simulation {
 
   private tick(): void {
     this.ticks += 1;
+    for (const cell of this.cells.values()) {
+      if (cell.resonance > 0) cell.resonance = cell.resonance < 0.02 ? 0 : cell.resonance * 0.78;
+    }
     this.diffuseEnergy();
     this.tickGenerators();
     this.tickThings();

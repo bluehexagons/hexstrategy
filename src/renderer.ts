@@ -328,6 +328,15 @@ export class BoardRenderer {
       context.fill();
     }
 
+    if (cell.resonance > 0.02) {
+      this.hexPath(center, this.hexSize * (0.66 + (1 - cell.resonance) * 0.25));
+      context.fillStyle = `rgba(99, 223, 214, ${cell.resonance * 0.16})`;
+      context.fill();
+      context.strokeStyle = `rgba(99, 223, 214, ${cell.resonance * 0.86})`;
+      context.lineWidth = Math.max(1, this.hexSize * 0.065);
+      context.stroke();
+    }
+
     if (!cell.buildable && this.hexSize >= 9) {
       context.strokeStyle = "rgba(235, 92, 91, 0.2)";
       context.lineWidth = Math.max(0.8, this.hexSize * 0.035);

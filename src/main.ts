@@ -35,15 +35,15 @@ interface PinchGesture {
 const canvas = element("game-canvas", HTMLCanvasElement);
 const overviewCanvas = element("overview-canvas", HTMLCanvasElement);
 const canvasWrap = element("canvas-wrap", HTMLDivElement);
-const sampleCount = element("sample-count", HTMLSpanElement);
-const worldSeed = element("world-seed", HTMLSpanElement);
-const thingCount = element("thing-count", HTMLSpanElement);
-const readyCount = element("ready-count", HTMLSpanElement);
-const moteCount = element("mote-count", HTMLSpanElement);
-const sourceCount = element("source-count", HTMLSpanElement);
-const energyValue = element("energy-value", HTMLSpanElement);
-const tickCount = element("tick-count", HTMLSpanElement);
-const fpsValue = element("fps-value", HTMLSpanElement);
+const sampleCount = element("sample-count", HTMLElement);
+const worldSeed = element("world-seed", HTMLElement);
+const thingCount = element("thing-count", HTMLElement);
+const readyCount = element("ready-count", HTMLElement);
+const moteCount = element("mote-count", HTMLElement);
+const sourceCount = element("source-count", HTMLElement);
+const energyValue = element("energy-value", HTMLElement);
+const tickCount = element("tick-count", HTMLElement);
+const fpsValue = element("fps-value", HTMLElement);
 const clockIndicator = element("clock-indicator", HTMLSpanElement);
 const clockLabel = element("clock-label", HTMLSpanElement);
 const zoomValue = element("zoom-value", HTMLSpanElement);
@@ -51,7 +51,9 @@ const selectionStatus = element("selection-status", HTMLSpanElement);
 const selectionContent = element("selection-content", HTMLDivElement);
 const activityLog = element("activity-log", HTMLOListElement);
 const actionPrompt = element("action-prompt", HTMLParagraphElement);
+const cellHint = element("cell-hint", HTMLDivElement);
 const seedButton = element("seed-button", HTMLButtonElement);
+const pulseButton = element("pulse-button", HTMLButtonElement);
 const clearButton = element("clear-button", HTMLButtonElement);
 const pauseButton = element("pause-button", HTMLButtonElement);
 const resetButton = element("reset-button", HTMLButtonElement);
@@ -144,13 +146,13 @@ function updateCanvasDescription(): void {
     "aria-label",
     coarsePointerQuery.matches
       ? `Realtime hex growth map. ${selection}${cursor} Tap to select, drag to pan, pinch to zoom, and use the on-screen action buttons.`
-      : `Realtime hex growth map. ${selection}${cursor} Use arrow keys to move, Enter to select, A to seed, and D to clear.`,
+      : `Realtime hex growth map. ${selection}${cursor} Use arrow keys to move, Enter to select, A to seed, S to pulse, and D to clear.`,
   );
 }
 
 function renderSelection(): void {
   const cells = selectedCells();
-  selectionStatus.textContent = cells.length === 0 ? "Watching grid" : `${cells.length} armed`;
+  selectionStatus.textContent = cells.length === 0 ? "Watching grid" : `${cells.length} selected`;
   selectionStatus.className = `status-pill${cells.length > 0 ? " armed" : ""}`;
 
   if (cells.length === 0) {
@@ -158,7 +160,7 @@ function renderSelection(): void {
       <div class="empty-selection">
         <span class="empty-symbol" aria-hidden="true">⌁</span>
         <h2>No cells selected</h2>
-        <p>${coarsePointerQuery.matches ? "Tap" : "Select"} a growing shape to arm it. When it turns red, the next world tick picks its mutation.</p>
+        <p>${coarsePointerQuery.matches ? "Tap" : "Click"} any hex, including empty cells and sources. Seed an empty cell, pulse a source or growth, or select a red shape to pick its next form.</p>
       </div>
     `;
     return;
@@ -180,14 +182,14 @@ function renderSelection(): void {
     ? `Cell ${singleCell.column + 1}.${singleCell.row + 1}`
     : `${cells.length} cells linked`;
   const state = !cells.every(({ buildable }) => buildable)
-    ? "Selection includes the void. It cannot hold a seed."
+    ? "Selection includes a void. Void cells cannot be seeded or pulsed."
     : ready > 0
       ? "Ready mutation queued for the next 250 ms tick."
       : things > 0
-        ? "Selection is armed. Local energy changes how quickly its genome matures."
+        ? "Selection armed. It will be picked when red; Pulse adds energy here and nearby."
         : singleCell?.generator
-          ? "Timed source selected. It diffuses energy and produces autonomous motes."
-          : "Empty cells selected. Press A to seed them.";
+          ? "Source selected. Pulse it to release a mote and brighten nearby cells."
+          : "Empty cells selected. Seed a form or Pulse to energize this area.";
   const ecology = singleCell
     ? `${singleCell.terrain} terrain · ${singleCell.generator ? "source online" : "ambient field"}`
     : "linked field sample";
@@ -203,13 +205,13 @@ function renderSelection(): void {
       <div><dt>Energy</dt><dd>${Math.round(energy * 100)}%</dd></div>
       <div><dt>Gen</dt><dd>${generation || "—"}</dd></div>
     </dl>
-    <p class="imprint-count">${plural(imprints, "persistent imprint")}</p>
+    <p class="imprint-count">${plural(imprints, "persistent imprint")} · Seed adds · Pulse spreads energy · Clear removes forms</p>
   `;
 }
 
 function updateActionPrompt(): void {
   if (simulation.paused) {
-    actionPrompt.innerHTML = `<strong>World clock paused.</strong> Resume to continue growth and queued picks.`;
+    actionPrompt.innerHTML = `<strong>Clock paused.</strong> Seed, Pulse, and Clear still work; Resume to watch the result.`;
     return;
   }
 
@@ -219,15 +221,15 @@ function updateActionPrompt(): void {
     0,
   );
   if (ready > 0) {
-    actionPrompt.innerHTML = `<strong>${plural(ready, "mutation")} ready.</strong> The clock will pick ${ready === 1 ? "it" : "them"} on the next tick.`;
+    actionPrompt.innerHTML = `<strong>${plural(ready, "form")} ready.</strong> The next tick picks ${ready === 1 ? "it" : "them"}; Pulse reaches neighbors.`;
   } else if (cells.some(({ things }) => things.length > 0)) {
-    actionPrompt.innerHTML = `<strong>Selection armed.</strong> Growth is continuous; red shapes are picked automatically.`;
+    actionPrompt.innerHTML = `<strong>Selection armed.</strong> Pulse adds energy nearby; red forms are picked on the next tick.`;
   } else if (cells.length > 0) {
-    actionPrompt.innerHTML = `<strong>${plural(cells.length, "empty cell")} selected.</strong> Press <kbd>A</kbd> to seed.`;
+    actionPrompt.innerHTML = `<strong>${plural(cells.length, "cell")} selected.</strong> Seed a form or Pulse to brighten the area.`;
   } else {
     actionPrompt.innerHTML = coarsePointerQuery.matches
-      ? `<strong>Tap</strong> select <span>·</span> <strong>Drag</strong> pan <span>·</span> <strong>Pinch</strong> zoom`
-      : `<kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle`;
+      ? `<strong>Tap any hex</strong> to select, then Seed or Pulse. Drag to pan.`
+      : `<strong>Click any hex</strong> to select, then Seed or Pulse. Drag across several.`;
   }
 }
 
@@ -324,6 +326,19 @@ function runClearAction(): void {
   showToast(cleared > 0 ? `CLEARED ${plural(cleared, "CELL").toUpperCase()}` : "NOTHING TO CLEAR");
 }
 
+function runPulseAction(): void {
+  const keys = actionKeys();
+  if (keys.length === 0) {
+    showToast("SELECT OR HOVER A CELL");
+    return;
+  }
+  const pulsed = simulation.pulseCells(keys);
+  syncInterface();
+  showToast(
+    pulsed > 0 ? `PULSED ${plural(pulsed, "CELL").toUpperCase()}` : "VOID CANNOT BE PULSED",
+  );
+}
+
 function togglePause(): void {
   simulation.setPaused(!simulation.paused);
   previousFrame = performance.now();
@@ -334,6 +349,7 @@ function togglePause(): void {
 function resetWorld(): void {
   simulation = new Simulation();
   hoveredKey = null;
+  cellHint.classList.remove("visible");
   keyboardMode = false;
   pointerInteraction = null;
   touchContacts.clear();
@@ -352,6 +368,20 @@ function resetWorld(): void {
 function updateHover(point: Point): void {
   hoveredKey = renderer.cellAtPoint(simulation, point.x, point.y)?.key ?? null;
   canvas.classList.toggle("interactive", hoveredKey !== null && !spacePressed);
+  const cell = hoveredKey ? simulation.cellAt(hoveredKey) : undefined;
+  const contents = !cell?.buildable
+    ? "void"
+    : cell.things.some(({ phase }) => phase === "ready")
+      ? "ready"
+      : cell.generator
+        ? "source"
+        : cell.things.length > 0
+          ? "form"
+          : "empty";
+  cellHint.textContent = cell
+    ? `${cell.column + 1}.${cell.row + 1} · ${cell.terrain} · ${contents} · click to select`
+    : "";
+  cellHint.classList.toggle("visible", Boolean(cell));
 }
 
 function capturePointer(pointerId: number): void {
@@ -572,6 +602,7 @@ canvas.addEventListener("pointerleave", () => {
   if (pointerInteraction || touchContacts.size > 0) return;
   hoveredKey = null;
   canvas.classList.remove("interactive");
+  cellHint.classList.remove("visible");
 });
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
@@ -610,6 +641,11 @@ canvas.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "a") {
     event.preventDefault();
     runSeedAction();
+    return;
+  }
+  if (event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    runPulseAction();
     return;
   }
   if (event.key.toLowerCase() === "d") {
@@ -662,6 +698,7 @@ canvas.addEventListener("focus", () => {
 });
 
 seedButton.addEventListener("click", runSeedAction);
+pulseButton.addEventListener("click", runPulseAction);
 clearButton.addEventListener("click", runClearAction);
 pauseButton.addEventListener("click", togglePause);
 resetButton.addEventListener("click", resetWorld);
@@ -682,7 +719,6 @@ selectionModeButton.addEventListener("click", () => {
   multiSelectMode = !multiSelectMode;
   selectionModeButton.setAttribute("aria-pressed", String(multiSelectMode));
   selectionModeButton.classList.toggle("active", multiSelectMode);
-  selectionModeButton.querySelector("span")!.textContent = multiSelectMode ? "Multi on" : "Multi";
   showToast(multiSelectMode ? "MULTI-SELECT ON" : "MULTI-SELECT OFF");
 });
 

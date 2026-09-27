@@ -9,20 +9,20 @@ This deliberately follows the character of the original prototype instead of tur
 ## How to play
 
 - When an armed shape turns red, its mutation is picked by the live clock. Its successor inherits a mutated genome and shape.
-- Use **Seed thing** to add growths to selected cells and **Clear** to remove their contents.
+- Select any hex, including an empty cell or a source. Use **Seed** to add a form, **Pulse** to add energy to that cell and its neighbors, and **Clear** to remove forms and imprints. Pulsing a source also releases a mote.
 - The overview map jumps directly to distant parts of the world.
 
 ### Touch
 
 - Tap a cell to select it. Drag with one finger to pan and pinch with two fingers to zoom.
 - Turn on **Multi** to add or remove cells with successive taps.
-- Seed, clear, pause, zoom, regenerate, and multi-select all have on-screen controls. The action dock remains available at the bottom of a phone screen.
+- Seed, pulse, clear, pause, zoom, regenerate, and multi-select all have on-screen controls. The action dock remains available at the bottom of a phone screen.
 
 ### Mouse and keyboard
 
-- Left-click a shape to arm it. Drag across cells for a multi-selection.
+- Left-click any cell to select it. A selected form is picked when it turns red. Drag across cells for a multi-selection.
 - Hold Shift to add cells or Control/Command to toggle them. The on-screen **Multi** control provides persistent toggle selection.
-- Press **A** to seed and **D** to clear selected or hovered cells.
+- Press **A** to seed, **S** to pulse, and **D** to clear selected or hovered cells.
 - Right-drag, middle-drag, or Space-drag to pan. Use the wheel to zoom around the pointer.
 - Press **P** to pause the world clock and **0** to recenter the camera.
 

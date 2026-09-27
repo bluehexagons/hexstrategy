@@ -524,6 +524,34 @@ canvas:focus-visible {
   background: var(--cyan);
 }
 
+.pulse-key {
+  border: 1px solid var(--cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(99, 223, 214, 0.2);
+}
+
+.cell-hint {
+  position: absolute;
+  z-index: 3;
+  top: 17px;
+  left: 17px;
+  max-width: calc(100% - 34px);
+  padding: 7px 10px;
+  border: 1px solid rgba(99, 223, 214, 0.55);
+  background: rgba(8, 13, 14, 0.88);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.cell-hint.visible {
+  opacity: 1;
+}
+
 .overview-wrap {
   position: absolute;
   z-index: 3;
@@ -656,6 +684,15 @@ kbd {
 
 .action-button.seed:hover {
   background: #c7fb67;
+}
+
+.action-button.pulse {
+  border-color: rgba(99, 223, 214, 0.55);
+  color: var(--cyan);
+}
+
+.action-button.pulse:hover {
+  background: rgba(99, 223, 214, 0.12);
 }
 
 .action-button.pause[aria-pressed="true"] {
@@ -1075,7 +1112,7 @@ kbd {
 
   .action-buttons {
     display: grid;
-    grid-template-columns: 0.85fr 1.2fr 0.75fr 0.75fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .action-button {
@@ -1151,6 +1188,10 @@ kbd {
     backdrop-filter: blur(8px);
   }
 
+  .cell-hint {
+    display: none;
+  }
+
   .touch-guide b {
     color: var(--acid);
     font-size: 7px;
@@ -1210,6 +1251,10 @@ kbd {
 }
 
 @media (max-width: 430px) {
+  .action-button kbd {
+    display: none;
+  }
+
   .brand small {
     display: none;
   }

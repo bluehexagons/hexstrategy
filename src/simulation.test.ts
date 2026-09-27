@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { neighbors } from "./hex";
 import {
   MAP_COLUMNS,
   MAP_ROWS,
@@ -150,6 +151,43 @@ describe("Simulation", () => {
     expect([...simulation.selectedKeys]).toEqual([second.key]);
     expect(simulation.clearCells([first.key, second.key])).toBe(2);
     expect(simulation.thingCount).toBe(0);
+  });
+
+  it("pulses each selected cell once, echoes to neighbors, and fades on ticks", () => {
+    const simulation = new Simulation(() => 0.5, false, 101);
+    const cell = [...simulation.cells.values()].find(
+      (candidate) =>
+        candidate.buildable &&
+        neighbors(candidate).some((point) => simulation.cellAt(point)?.buildable),
+    );
+    if (!cell) throw new Error("Expected a cell with a buildable neighbor");
+    const neighbor = neighbors(cell)
+      .map((point) => simulation.cellAt(point))
+      .find((candidate) => candidate?.buildable);
+    if (!neighbor) throw new Error("Expected a buildable neighbor");
+    const cellEnergy = cell.energy;
+    const neighborEnergy = neighbor.energy;
+
+    expect(simulation.pulseCells([cell.key, cell.key, "2,2"])).toBe(1);
+    expect(cell.energy).toBeCloseTo(cellEnergy + 0.32);
+    expect(neighbor.energy).toBeCloseTo(neighborEnergy + 0.16);
+    expect(cell.resonance).toBe(1);
+    expect(neighbor.resonance).toBe(0.6);
+    expect(simulation.cellAt("2,2")?.resonance).toBe(0);
+
+    simulation.advance(TICK_MS);
+    expect(cell.resonance).toBeLessThan(1);
+    expect(cell.resonance).toBeGreaterThan(0);
+  });
+
+  it("releases a mote when pulsing a source", () => {
+    const simulation = new Simulation(undefined, true, 91_117);
+    const source = [...simulation.cells.values()].find(({ generator }) => generator !== null);
+    if (!source) throw new Error("Expected a source");
+    const before = simulation.motes.length;
+
+    expect(simulation.pulseCells([source.key])).toBe(1);
+    expect(simulation.motes).toHaveLength(before + 1);
   });
 
   it("diffuses generated energy through neighboring cells", () => {
