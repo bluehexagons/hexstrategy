@@ -1,17 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       content="Hex Strategy, a large procedural realtime canvas simulation inspired by a 2011 prototype."
-    >
-    <meta name="theme-color" content="#080d0e">
+    />
+    <meta name="theme-color" content="#080d0e" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><path fill=%22%23b7ef53%22 d=%22M32 3 57 17v30L32 61 7 47V17z%22/><path fill=%22%23080d0e%22 d=%22M32 12 49 22v20L32 52 15 42V22z%22/><circle cx=%2232%22 cy=%2232%22 r=%226%22 fill=%22%23ff6769%22/></svg>"
-    >
+    />
     <title>Hex Strategy — Realtime Systems Test</title>
   </head>
   <body>
@@ -27,7 +27,12 @@
         </a>
         <div class="topbar-actions">
           <span class="build-badge"><i></i> TS7 native build</span>
-          <button class="quiet-button" id="reset-button" type="button" title="Generate a new procedural world">
+          <button
+            class="quiet-button"
+            id="reset-button"
+            type="button"
+            title="Generate a new procedural world"
+          >
             <span aria-hidden="true">↻</span> New world
           </button>
         </div>
@@ -38,7 +43,10 @@
           <span class="eyebrow">96 × 64 procedural lattice · circa 2008–2011</span>
           <h1>The grid never waits.</h1>
         </div>
-        <p>Energy diffuses. Sources produce motes. Genomes mutate. Tap or click a growth and its <strong>red</strong> state becomes the next generation.</p>
+        <p>
+          Energy diffuses. Sources produce motes. Genomes mutate. Tap or click a growth and its
+          <strong>red</strong> state becomes the next generation.
+        </p>
         <div class="sample-counter">
           <span>Picked samples</span>
           <b id="sample-count">000</b>
@@ -56,11 +64,15 @@
               <i class="telemetry-secondary"></i>
               <span><small>Motes</small><b id="mote-count">0</b></span>
               <i></i>
-              <span class="telemetry-secondary"><small>Sources</small><b id="source-count">0</b></span>
+              <span class="telemetry-secondary"
+                ><small>Sources</small><b id="source-count">0</b></span
+              >
               <i class="telemetry-secondary"></i>
               <span><small>Energy</small><b id="energy-value">0%</b></span>
               <i class="telemetry-secondary"></i>
-              <span class="telemetry-secondary"><small>Tick</small><b id="tick-count">00000</b></span>
+              <span class="telemetry-secondary"
+                ><small>Tick</small><b id="tick-count">00000</b></span
+              >
               <i class="telemetry-secondary"></i>
               <span class="telemetry-secondary"><small>FPS</small><b id="fps-value">--</b></span>
             </div>
@@ -70,7 +82,9 @@
             </div>
             <div class="camera-tools" aria-label="Camera controls">
               <button id="zoom-out-button" type="button" aria-label="Zoom out">−</button>
-              <button id="camera-reset-button" type="button" title="Reset camera"><span id="zoom-value">100%</span></button>
+              <button id="camera-reset-button" type="button" title="Reset camera">
+                <span id="zoom-value">100%</span>
+              </button>
               <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
             </div>
           </div>
@@ -85,11 +99,17 @@
             <div class="sr-only" id="map-announcer" aria-live="polite" aria-atomic="true"></div>
             <div class="status-toast" id="status-toast" role="status" aria-live="polite"></div>
             <div class="touch-guide" role="note" aria-label="Touch controls">
-              <b>Touch</b><span>Tap select</span><i></i><span>Drag pan</span><i></i><span>Pinch zoom</span>
+              <b>Touch</b><span>Tap select</span><i></i><span>Drag pan</span><i></i
+              ><span>Pinch zoom</span>
             </div>
             <div class="overview-wrap">
               <span>World overview · tap / click to jump</span>
-              <canvas id="overview-canvas" role="button" aria-label="World overview. Click to move the camera, or press Enter to recenter." tabindex="0"></canvas>
+              <canvas
+                id="overview-canvas"
+                role="button"
+                aria-label="World overview. Click to move the camera, or press Enter to recenter."
+                tabindex="0"
+              ></canvas>
             </div>
             <div class="map-legend" aria-hidden="true">
               <span><i class="growing-key"></i> Growing</span>
@@ -100,12 +120,34 @@
           </div>
 
           <div class="board-footer">
-            <p id="action-prompt"><kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span> <kbd>Ctrl</kbd> toggle</p>
+            <p id="action-prompt">
+              <kbd>Drag</kbd> multi-select <span>·</span> <kbd>Shift</kbd> add <span>·</span>
+              <kbd>Ctrl</kbd> toggle
+            </p>
             <div class="action-buttons">
-              <button class="action-button selection-mode-button" id="selection-mode-button" type="button" aria-label="Toggle additive multi-select mode" aria-pressed="false"><b aria-hidden="true">＋</b><span>Multi</span></button>
-              <button class="action-button seed" id="seed-button" type="button">Seed thing <kbd>A</kbd></button>
-              <button class="action-button" id="clear-button" type="button">Clear <kbd>D</kbd></button>
-              <button class="action-button pause" id="pause-button" type="button" aria-pressed="false">Pause <span aria-hidden="true">Ⅱ</span></button>
+              <button
+                class="action-button selection-mode-button"
+                id="selection-mode-button"
+                type="button"
+                aria-label="Toggle additive multi-select mode"
+                aria-pressed="false"
+              >
+                <b aria-hidden="true">＋</b><span>Multi</span>
+              </button>
+              <button class="action-button seed" id="seed-button" type="button">
+                Seed thing <kbd>A</kbd>
+              </button>
+              <button class="action-button" id="clear-button" type="button">
+                Clear <kbd>D</kbd>
+              </button>
+              <button
+                class="action-button pause"
+                id="pause-button"
+                type="button"
+                aria-pressed="false"
+              >
+                Pause <span aria-hidden="true">Ⅱ</span>
+              </button>
             </div>
           </div>
         </div>
@@ -125,11 +167,26 @@
               <span>mouse + touch</span>
             </div>
             <dl class="control-list">
-              <div><dt><kbd>Tap</kbd> / <kbd>Click</kbd></dt><dd>Select a cell</dd></div>
-              <div><dt><kbd>Touch drag</kbd> / <kbd>Right drag</kbd></dt><dd>Pan the world</dd></div>
-              <div><dt><kbd>Pinch</kbd> / <kbd>Wheel</kbd></dt><dd>Zoom at pointer</dd></div>
-              <div><dt><kbd>Multi</kbd></dt><dd>Toggle several cells</dd></div>
-              <div><dt><kbd>Overview</kbd></dt><dd>Jump across the world</dd></div>
+              <div>
+                <dt><kbd>Tap</kbd> / <kbd>Click</kbd></dt>
+                <dd>Select a cell</dd>
+              </div>
+              <div>
+                <dt><kbd>Touch drag</kbd> / <kbd>Right drag</kbd></dt>
+                <dd>Pan the world</dd>
+              </div>
+              <div>
+                <dt><kbd>Pinch</kbd> / <kbd>Wheel</kbd></dt>
+                <dd>Zoom at pointer</dd>
+              </div>
+              <div>
+                <dt><kbd>Multi</kbd></dt>
+                <dd>Toggle several cells</dd>
+              </div>
+              <div>
+                <dt><kbd>Overview</kbd></dt>
+                <dd>Jump across the world</dd>
+              </div>
             </dl>
           </section>
 
@@ -144,9 +201,18 @@
       </section>
 
       <footer class="site-footer">
-        <p>6,144 linked cells run energy diffusion, production cycles, autonomous movement, colonization, and inherited mutation.</p>
-        <p id="map-help"><strong>Touch:</strong> Tap to select, drag to pan, pinch to zoom, and use Multi to add cells. All actions have on-screen buttons.</p>
-        <p><strong>Mouse + keyboard:</strong> Right-drag or Space-drag to pan; wheel to zoom; A seed; D clear; P pause; 0 recenter.</p>
+        <p>
+          6,144 linked cells run energy diffusion, production cycles, autonomous movement,
+          colonization, and inherited mutation.
+        </p>
+        <p id="map-help">
+          <strong>Touch:</strong> Tap to select, drag to pan, pinch to zoom, and use Multi to add
+          cells. All actions have on-screen buttons.
+        </p>
+        <p>
+          <strong>Mouse + keyboard:</strong> Right-drag or Space-drag to pan; wheel to zoom; A seed;
+          D clear; P pause; 0 recenter.
+        </p>
       </footer>
     </main>
 

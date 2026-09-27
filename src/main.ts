@@ -3,10 +3,10 @@ import { hexKey } from "./hex";
 import { BoardRenderer, type Point } from "./renderer";
 import { Simulation, TICK_MS, type SelectionMode, type SimulationCell } from "./simulation";
 
-function element<T extends HTMLElement>(id: string): T {
+function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const found = document.getElementById(id);
-  if (!found) throw new Error(`Missing required element: #${id}`);
-  return found as T;
+  if (!(found instanceof type)) throw new Error(`Missing or incorrect element: #${id}`);
+  return found;
 }
 
 interface PointerInteraction {
@@ -32,35 +32,35 @@ interface PinchGesture {
   readonly distance: number;
 }
 
-const canvas = element<HTMLCanvasElement>("game-canvas");
-const overviewCanvas = element<HTMLCanvasElement>("overview-canvas");
-const canvasWrap = element<HTMLDivElement>("canvas-wrap");
-const sampleCount = element<HTMLSpanElement>("sample-count");
-const worldSeed = element<HTMLSpanElement>("world-seed");
-const thingCount = element<HTMLSpanElement>("thing-count");
-const readyCount = element<HTMLSpanElement>("ready-count");
-const moteCount = element<HTMLSpanElement>("mote-count");
-const sourceCount = element<HTMLSpanElement>("source-count");
-const energyValue = element<HTMLSpanElement>("energy-value");
-const tickCount = element<HTMLSpanElement>("tick-count");
-const fpsValue = element<HTMLSpanElement>("fps-value");
-const clockIndicator = element<HTMLSpanElement>("clock-indicator");
-const clockLabel = element<HTMLSpanElement>("clock-label");
-const zoomValue = element<HTMLSpanElement>("zoom-value");
-const selectionStatus = element<HTMLSpanElement>("selection-status");
-const selectionContent = element<HTMLDivElement>("selection-content");
-const activityLog = element<HTMLOListElement>("activity-log");
-const actionPrompt = element<HTMLParagraphElement>("action-prompt");
-const seedButton = element<HTMLButtonElement>("seed-button");
-const clearButton = element<HTMLButtonElement>("clear-button");
-const pauseButton = element<HTMLButtonElement>("pause-button");
-const resetButton = element<HTMLButtonElement>("reset-button");
-const zoomOutButton = element<HTMLButtonElement>("zoom-out-button");
-const zoomInButton = element<HTMLButtonElement>("zoom-in-button");
-const cameraResetButton = element<HTMLButtonElement>("camera-reset-button");
-const selectionModeButton = element<HTMLButtonElement>("selection-mode-button");
-const statusToast = element<HTMLDivElement>("status-toast");
-const mapAnnouncer = element<HTMLDivElement>("map-announcer");
+const canvas = element("game-canvas", HTMLCanvasElement);
+const overviewCanvas = element("overview-canvas", HTMLCanvasElement);
+const canvasWrap = element("canvas-wrap", HTMLDivElement);
+const sampleCount = element("sample-count", HTMLSpanElement);
+const worldSeed = element("world-seed", HTMLSpanElement);
+const thingCount = element("thing-count", HTMLSpanElement);
+const readyCount = element("ready-count", HTMLSpanElement);
+const moteCount = element("mote-count", HTMLSpanElement);
+const sourceCount = element("source-count", HTMLSpanElement);
+const energyValue = element("energy-value", HTMLSpanElement);
+const tickCount = element("tick-count", HTMLSpanElement);
+const fpsValue = element("fps-value", HTMLSpanElement);
+const clockIndicator = element("clock-indicator", HTMLSpanElement);
+const clockLabel = element("clock-label", HTMLSpanElement);
+const zoomValue = element("zoom-value", HTMLSpanElement);
+const selectionStatus = element("selection-status", HTMLSpanElement);
+const selectionContent = element("selection-content", HTMLDivElement);
+const activityLog = element("activity-log", HTMLOListElement);
+const actionPrompt = element("action-prompt", HTMLParagraphElement);
+const seedButton = element("seed-button", HTMLButtonElement);
+const clearButton = element("clear-button", HTMLButtonElement);
+const pauseButton = element("pause-button", HTMLButtonElement);
+const resetButton = element("reset-button", HTMLButtonElement);
+const zoomOutButton = element("zoom-out-button", HTMLButtonElement);
+const zoomInButton = element("zoom-in-button", HTMLButtonElement);
+const cameraResetButton = element("camera-reset-button", HTMLButtonElement);
+const selectionModeButton = element("selection-mode-button", HTMLButtonElement);
+const statusToast = element("status-toast", HTMLDivElement);
+const mapAnnouncer = element("map-announcer", HTMLDivElement);
 
 let simulation = new Simulation();
 let hoveredKey: string | null = null;
@@ -103,9 +103,10 @@ function describeCell(cell: SimulationCell): string {
   const ready = cell.things.filter(({ phase }) => phase === "ready").length;
   const growing = cell.things.filter(({ phase }) => phase === "growing").length;
   const waiting = cell.things.length - ready - growing;
-  const contents = cell.things.length === 0
-    ? "empty"
-    : `${plural(waiting, "waiting thing")}, ${plural(growing, "growing thing")}, ${plural(ready, "ready thing")}`;
+  const contents =
+    cell.things.length === 0
+      ? "empty"
+      : `${plural(waiting, "waiting thing")}, ${plural(growing, "growing thing")}, ${plural(ready, "ready thing")}`;
   const source = cell.generator ? " Timed source present." : "";
   return `Cell ${cell.column + 1}.${cell.row + 1}, ${cell.terrain}, ${Math.round(cell.energy * 100)} percent energy, ${contents}, ${plural(cell.imprints.length, "imprint")}.${source}`;
 }
@@ -114,11 +115,14 @@ function cursorStartingKey(): string {
   const center = { column: simulation.columns / 2, row: simulation.rows / 2 };
   const occupied = [...simulation.cells.values()]
     .filter(({ things }) => things.length > 0)
-    .sort((a, b) => (
-      Math.hypot(a.column - center.column, a.row - center.row)
-      - Math.hypot(b.column - center.column, b.row - center.row)
-    ))[0];
-  return occupied?.key ?? hexKey({ column: Math.floor(center.column), row: Math.floor(center.row) });
+    .toSorted(
+      (a, b) =>
+        Math.hypot(a.column - center.column, a.row - center.row) -
+        Math.hypot(b.column - center.column, b.row - center.row),
+    )[0];
+  return (
+    occupied?.key ?? hexKey({ column: Math.floor(center.column), row: Math.floor(center.row) })
+  );
 }
 
 function announceCursor(): void {
@@ -128,12 +132,14 @@ function announceCursor(): void {
 }
 
 function updateCanvasDescription(): void {
-  const selection = simulation.selectedKeys.size === 0
-    ? "No cells selected."
-    : `${plural(simulation.selectedKeys.size, "cell")} selected.`;
-  const cursor = keyboardMode && hoveredKey
-    ? ` Cursor: ${describeCell(simulation.cellAt(hoveredKey) ?? simulation.cellAt(cursorStartingKey())!)}`
-    : "";
+  const selection =
+    simulation.selectedKeys.size === 0
+      ? "No cells selected."
+      : `${plural(simulation.selectedKeys.size, "cell")} selected.`;
+  const cursor =
+    keyboardMode && hoveredKey
+      ? ` Cursor: ${describeCell(simulation.cellAt(hoveredKey) ?? simulation.cellAt(cursorStartingKey())!)}`
+      : "";
   canvas.setAttribute(
     "aria-label",
     coarsePointerQuery.matches
@@ -170,7 +176,9 @@ function renderSelection(): void {
     0,
   );
   const energy = cells.reduce((total, cell) => total + cell.energy, 0) / cells.length;
-  const title = singleCell ? `Cell ${singleCell.column + 1}.${singleCell.row + 1}` : `${cells.length} cells linked`;
+  const title = singleCell
+    ? `Cell ${singleCell.column + 1}.${singleCell.row + 1}`
+    : `${cells.length} cells linked`;
   const state = !cells.every(({ buildable }) => buildable)
     ? "Selection includes the void. It cannot hold a seed."
     : ready > 0
@@ -179,7 +187,7 @@ function renderSelection(): void {
         ? "Selection is armed. Local energy changes how quickly its genome matures."
         : singleCell?.generator
           ? "Timed source selected. It diffuses energy and produces autonomous motes."
-          : "Empty cells selected. Press A to seed them."
+          : "Empty cells selected. Press A to seed them.";
   const ecology = singleCell
     ? `${singleCell.terrain} terrain · ${singleCell.generator ? "source online" : "ambient field"}`
     : "linked field sample";
@@ -248,7 +256,10 @@ function syncInterface(): void {
   renderSelection();
   updateActionPrompt();
   activityLog.innerHTML = simulation.activity
-    .map((message, index) => `<li class="${index === 0 ? "latest" : ""}"><i></i><span>${message}</span></li>`)
+    .map(
+      (message, index) =>
+        `<li class="${index === 0 ? "latest" : ""}"><i></i><span>${message}</span></li>`,
+    )
     .join("");
   updateCanvasDescription();
   syncCamera();
@@ -270,11 +281,12 @@ function moveKeyboardCursor(key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "Arrow
   const current = simulation.cellAt(hoveredKey ?? cursorStartingKey());
   if (!current) return;
 
-  let destination = key === "ArrowLeft"
-    ? simulation.cellAt({ column: current.column - 1, row: current.row })
-    : key === "ArrowRight"
-      ? simulation.cellAt({ column: current.column + 1, row: current.row })
-      : undefined;
+  let destination =
+    key === "ArrowLeft"
+      ? simulation.cellAt({ column: current.column - 1, row: current.row })
+      : key === "ArrowRight"
+        ? simulation.cellAt({ column: current.column + 1, row: current.row })
+        : undefined;
 
   if (!destination && (key === "ArrowUp" || key === "ArrowDown")) {
     const targetRow = current.row + (key === "ArrowUp" ? -1 : 1);
@@ -364,10 +376,10 @@ function currentPinch(): PinchGesture | null {
       x: (first.lastPoint.x + second.lastPoint.x) / 2,
       y: (first.lastPoint.y + second.lastPoint.y) / 2,
     },
-    distance: Math.max(1, Math.hypot(
-      second.lastPoint.x - first.lastPoint.x,
-      second.lastPoint.y - first.lastPoint.y,
-    )),
+    distance: Math.max(
+      1,
+      Math.hypot(second.lastPoint.x - first.lastPoint.x, second.lastPoint.y - first.lastPoint.y),
+    ),
   };
 }
 
@@ -444,9 +456,13 @@ function finishTouch(event: PointerEvent, cancelled = false): void {
     if (cell) {
       const wasSelected = simulation.selectedKeys.has(cell.key);
       selectCell(cell, multiSelectMode ? "toggle" : "replace");
-      showToast(multiSelectMode
-        ? wasSelected ? "CELL REMOVED" : "CELL ADDED"
-        : `CELL ${cell.column + 1}.${cell.row + 1}`);
+      showToast(
+        multiSelectMode
+          ? wasSelected
+            ? "CELL REMOVED"
+            : "CELL ADDED"
+          : `CELL ${cell.column + 1}.${cell.row + 1}`,
+      );
     } else if (!multiSelectMode) {
       simulation.clearSelection();
       syncInterface();
@@ -464,14 +480,16 @@ canvas.addEventListener("pointerdown", (event) => {
   canvas.focus();
   keyboardMode = false;
   const point = pointFor(event);
-  const shouldPan = event.button === 1 || event.button === 2 || (spacePressed && event.button === 0);
-  const selectionMode: SelectionMode = event.ctrlKey || event.metaKey
-    ? "toggle"
-    : multiSelectMode
+  const shouldPan =
+    event.button === 1 || event.button === 2 || (spacePressed && event.button === 0);
+  const selectionMode: SelectionMode =
+    event.ctrlKey || event.metaKey
       ? "toggle"
-      : event.shiftKey
-      ? "add"
-      : "replace";
+      : multiSelectMode
+        ? "toggle"
+        : event.shiftKey
+          ? "add"
+          : "replace";
   pointerInteraction = {
     pointerId: event.pointerId,
     mode: shouldPan ? "pan" : "select",
@@ -557,24 +575,33 @@ canvas.addEventListener("pointerleave", () => {
 });
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
-canvas.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  const point = pointFor(event);
-  renderer.zoomAt(Math.exp(-event.deltaY * 0.0012), point);
-  updateHover(point);
-  syncCamera();
-}, { passive: false });
+canvas.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+    const point = pointFor(event);
+    renderer.zoomAt(Math.exp(-event.deltaY * 0.0012), point);
+    updateHover(point);
+    syncCamera();
+  },
+  { passive: false },
+);
 
 canvas.addEventListener("keydown", (event) => {
   keyboardMode = true;
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
-    event.preventDefault();
-    moveKeyboardCursor(event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown");
-    return;
+  switch (event.key) {
+    case "ArrowLeft":
+    case "ArrowRight":
+    case "ArrowUp":
+    case "ArrowDown":
+      event.preventDefault();
+      moveKeyboardCursor(event.key);
+      return;
   }
   if (event.key === "Enter" && hoveredKey) {
     event.preventDefault();
-    const mode: SelectionMode = event.ctrlKey || event.metaKey ? "toggle" : event.shiftKey ? "add" : "replace";
+    const mode: SelectionMode =
+      event.ctrlKey || event.metaKey ? "toggle" : event.shiftKey ? "add" : "replace";
     const cell = simulation.cellAt(hoveredKey);
     if (cell) selectCell(cell, mode);
     announceCursor();
@@ -662,14 +689,20 @@ selectionModeButton.addEventListener("click", () => {
 overviewCanvas.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   const bounds = overviewCanvas.getBoundingClientRect();
-  const column = Math.max(0, Math.min(
-    simulation.columns - 1,
-    Math.floor(((event.clientX - bounds.left) / bounds.width) * simulation.columns),
-  ));
-  const row = Math.max(0, Math.min(
-    simulation.rows - 1,
-    Math.floor(((event.clientY - bounds.top) / bounds.height) * simulation.rows),
-  ));
+  const column = Math.max(
+    0,
+    Math.min(
+      simulation.columns - 1,
+      Math.floor(((event.clientX - bounds.left) / bounds.width) * simulation.columns),
+    ),
+  );
+  const row = Math.max(
+    0,
+    Math.min(
+      simulation.rows - 1,
+      Math.floor(((event.clientY - bounds.top) / bounds.height) * simulation.rows),
+    ),
+  );
   renderer.centerOn({ column, row });
   hoveredKey = hexKey({ column, row });
   syncCamera();

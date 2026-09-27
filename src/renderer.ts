@@ -35,14 +35,21 @@ const MINIMUM_HEX_SIZE = 7;
 const MINIMUM_TOUCH_HEX_SIZE = 14;
 const MAXIMUM_HEX_SIZE = 72;
 const STARTING_ZOOM = 2.35;
-const TERRAIN_COLORS: Readonly<Record<Terrain, { readonly fill: string; readonly stroke: string }>> = {
+const TERRAIN_COLORS: Readonly<
+  Record<Terrain, { readonly fill: string; readonly stroke: string }>
+> = {
   field: { fill: "#141c1c", stroke: "#263130" },
   basin: { fill: "#102024", stroke: "#20383b" },
   ridge: { fill: "#1c1a22", stroke: "#302d38" },
   void: { fill: "#06090a", stroke: "#111617" },
 };
 
-export function calculateHexSize(width: number, height: number, boardWidth: number, boardHeight: number): number {
+export function calculateHexSize(
+  width: number,
+  height: number,
+  boardWidth: number,
+  boardHeight: number,
+): number {
   const shortestSide = Math.max(0, Math.min(width, height));
   const padding = Math.min(38, Math.max(14, shortestSide * 0.06));
   const availableWidth = Math.max(1, width - padding * 2);
@@ -53,8 +60,10 @@ export function calculateHexSize(width: number, height: number, boardWidth: numb
 export function isPointInHex(point: Point, center: Point, radius: number): boolean {
   const horizontalDistance = Math.abs(point.x - center.x);
   const verticalDistance = Math.abs(point.y - center.y);
-  return horizontalDistance <= (SQRT_THREE / 2) * radius
-    && SQRT_THREE * verticalDistance + horizontalDistance <= SQRT_THREE * radius;
+  return (
+    horizontalDistance <= (SQRT_THREE / 2) * radius &&
+    SQRT_THREE * verticalDistance + horizontalDistance <= SQRT_THREE * radius
+  );
 }
 
 export class BoardRenderer {
@@ -171,7 +180,8 @@ export class BoardRenderer {
 
     for (const cell of visibleCells) {
       const center = this.center(cell);
-      if (cell.generator) this.drawGenerator(cell.generator, center, simulation.tickFraction, pulse);
+      if (cell.generator)
+        this.drawGenerator(cell.generator, center, simulation.tickFraction, pulse);
       for (const imprint of cell.imprints) this.drawImprint(imprint, center);
       this.drawThings(cell, center, simulation.tickFraction, pulse);
     }
@@ -199,13 +209,14 @@ export class BoardRenderer {
       const terrainContext = terrain.getContext("2d");
       if (terrainContext) {
         for (const cell of simulation.cells.values()) {
-          terrainContext.fillStyle = cell.terrain === "void"
-            ? "#090c0d"
-            : cell.terrain === "basin"
-              ? "#173137"
-              : cell.terrain === "ridge"
-                ? "#292632"
-                : "#1b2927";
+          terrainContext.fillStyle =
+            cell.terrain === "void"
+              ? "#090c0d"
+              : cell.terrain === "basin"
+                ? "#173137"
+                : cell.terrain === "ridge"
+                  ? "#292632"
+                  : "#1b2927";
           terrainContext.fillRect(cell.column, cell.row, 1, 1);
         }
       }
@@ -220,11 +231,23 @@ export class BoardRenderer {
     for (const cell of simulation.cells.values()) {
       if (cell.generator) {
         context.fillStyle = "#f0d35f";
-        context.fillRect(cell.column * cellWidth, cell.row * cellHeight, Math.max(1, cellWidth), Math.max(1, cellHeight));
+        context.fillRect(
+          cell.column * cellWidth,
+          cell.row * cellHeight,
+          Math.max(1, cellWidth),
+          Math.max(1, cellHeight),
+        );
       }
       if (cell.things.length > 0) {
-        context.fillStyle = cell.things.some(({ phase }) => phase === "ready") ? "#ff6769" : "#63dfd6";
-        context.fillRect(cell.column * cellWidth, cell.row * cellHeight, Math.max(1.2, cellWidth), Math.max(1.2, cellHeight));
+        context.fillStyle = cell.things.some(({ phase }) => phase === "ready")
+          ? "#ff6769"
+          : "#63dfd6";
+        context.fillRect(
+          cell.column * cellWidth,
+          cell.row * cellHeight,
+          Math.max(1.2, cellWidth),
+          Math.max(1.2, cellHeight),
+        );
       }
     }
 
@@ -269,7 +292,10 @@ export class BoardRenderer {
       const rawMinimumX = (-this.hexSize - this.origin.x) / this.hexSize;
       const rawMaximumX = (this.width + this.hexSize - this.origin.x) / this.hexSize;
       const minimumColumn = Math.max(0, Math.floor(rawMinimumX / SQRT_THREE - rowOffset));
-      const maximumColumn = Math.min(simulation.columns - 1, Math.ceil(rawMaximumX / SQRT_THREE - rowOffset));
+      const maximumColumn = Math.min(
+        simulation.columns - 1,
+        Math.ceil(rawMaximumX / SQRT_THREE - rowOffset),
+      );
       for (let column = minimumColumn; column <= maximumColumn; column += 1) {
         const cell = simulation.cellAt(hexKey({ column, row }));
         if (cell) visible.push(cell);
@@ -278,7 +304,13 @@ export class BoardRenderer {
     return visible;
   }
 
-  private drawCell(cell: SimulationCell, center: Point, selected: boolean, hovered: boolean, pulse: number): void {
+  private drawCell(
+    cell: SimulationCell,
+    center: Point,
+    selected: boolean,
+    hovered: boolean,
+    pulse: number,
+  ): void {
     const context = this.context;
     const ready = cell.things.some(({ phase }) => phase === "ready");
     const palette = TERRAIN_COLORS[cell.terrain];
@@ -334,7 +366,12 @@ export class BoardRenderer {
     context.restore();
   }
 
-  private drawGenerator(generator: Generator, center: Point, tickFraction: number, pulse: number): void {
+  private drawGenerator(
+    generator: Generator,
+    center: Point,
+    tickFraction: number,
+    pulse: number,
+  ): void {
     const context = this.context;
     const radius = Math.max(2.6, this.hexSize * 0.26);
     const progress = generatorProgress(generator, tickFraction);
@@ -351,7 +388,13 @@ export class BoardRenderer {
     if (this.hexSize >= 9) {
       context.save();
       context.beginPath();
-      context.arc(center.x, center.y, this.hexSize * 0.43, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+      context.arc(
+        center.x,
+        center.y,
+        this.hexSize * 0.43,
+        -Math.PI / 2,
+        -Math.PI / 2 + progress * Math.PI * 2,
+      );
       context.strokeStyle = `hsla(${generator.hue} 90% 68% / 0.72)`;
       context.lineWidth = Math.max(1, this.hexSize * 0.055);
       context.stroke();
@@ -375,7 +418,12 @@ export class BoardRenderer {
     context.restore();
   }
 
-  private drawThings(cell: SimulationCell, center: Point, tickFraction: number, pulse: number): void {
+  private drawThings(
+    cell: SimulationCell,
+    center: Point,
+    tickFraction: number,
+    pulse: number,
+  ): void {
     const context = this.context;
     const thingCount = cell.things.length;
     let leadingProgress = 0;
@@ -385,13 +433,23 @@ export class BoardRenderer {
       leadingProgress = Math.max(leadingProgress, progress);
       const angle = thingCount > 1 ? (index / thingCount) * Math.PI * 2 - Math.PI / 2 : 0;
       const offset = thingCount > 1 ? this.hexSize * 0.17 : 0;
-      this.drawThing(thing, {
-        x: center.x + Math.cos(angle) * offset,
-        y: center.y + Math.sin(angle) * offset,
-      }, progress, thingCount > 1 ? 0.72 : 1, pulse);
+      this.drawThing(
+        thing,
+        {
+          x: center.x + Math.cos(angle) * offset,
+          y: center.y + Math.sin(angle) * offset,
+        },
+        progress,
+        thingCount > 1 ? 0.72 : 1,
+        pulse,
+      );
     }
 
-    if (this.hexSize >= 8 && thingCount > 0 && cell.things.some(({ phase }) => phase === "growing")) {
+    if (
+      this.hexSize >= 8 &&
+      thingCount > 0 &&
+      cell.things.some(({ phase }) => phase === "growing")
+    ) {
       const barWidth = this.hexSize * 0.86;
       const barHeight = Math.max(1.5, this.hexSize * 0.07);
       const startX = center.x - barWidth / 2;
@@ -408,7 +466,13 @@ export class BoardRenderer {
     }
   }
 
-  private drawThing(thing: Thing, center: Point, progress: number, layerScale: number, pulse: number): void {
+  private drawThing(
+    thing: Thing,
+    center: Point,
+    progress: number,
+    layerScale: number,
+    pulse: number,
+  ): void {
     const context = this.context;
     const ready = thing.phase === "ready";
     const waiting = thing.phase === "waiting";
@@ -423,7 +487,8 @@ export class BoardRenderer {
     context.fill();
     context.globalAlpha = 1;
     context.strokeStyle = ready ? "#ff6769" : thing.stroke;
-    context.lineWidth = Math.max(0.75, this.hexSize * (ready ? 0.07 : 0.045)) / Math.max(scale, 0.2);
+    context.lineWidth =
+      Math.max(0.75, this.hexSize * (ready ? 0.07 : 0.045)) / Math.max(scale, 0.2);
     context.shadowColor = ready ? "rgba(255, 78, 81, 0.7)" : thing.stroke;
     context.shadowBlur = ready ? this.hexSize * 0.26 : waiting ? 0 : this.hexSize * 0.1;
     context.stroke();
@@ -522,10 +587,12 @@ export class BoardRenderer {
   }
 
   private isVisible(center: Point): boolean {
-    return center.x > -this.hexSize
-      && center.y > -this.hexSize
-      && center.x < this.width + this.hexSize
-      && center.y < this.height + this.hexSize;
+    return (
+      center.x > -this.hexSize &&
+      center.y > -this.hexSize &&
+      center.x < this.width + this.hexSize &&
+      center.y < this.height + this.hexSize
+    );
   }
 
   private clampHexSize(size: number): number {

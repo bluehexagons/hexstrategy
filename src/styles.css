@@ -368,7 +368,9 @@ canvas:focus-visible {
 }
 
 @keyframes clock-pulse {
-  50% { opacity: 0.15; }
+  50% {
+    opacity: 0.15;
+  }
 }
 
 .camera-tools {
@@ -419,7 +421,10 @@ canvas:focus-visible {
     linear-gradient(rgba(99, 223, 214, 0.018) 1px, transparent 1px),
     linear-gradient(90deg, rgba(99, 223, 214, 0.018) 1px, transparent 1px),
     radial-gradient(circle at center, #11191a, #080d0e 72%);
-  background-size: 32px 32px, 32px 32px, auto;
+  background-size:
+    32px 32px,
+    32px 32px,
+    auto;
 }
 
 .canvas-wrap::before,
@@ -502,10 +507,22 @@ canvas:focus-visible {
   transform: rotate(45deg);
 }
 
-.growing-key { border: 1px solid var(--cyan); }
-.ready-key { background: var(--red); }
-.source-key { border: 1px solid #f0d35f; box-shadow: inset 0 0 0 2px #121819; }
-.mote-key { width: 6px !important; height: 6px !important; border-radius: 50%; background: var(--cyan); }
+.growing-key {
+  border: 1px solid var(--cyan);
+}
+.ready-key {
+  background: var(--red);
+}
+.source-key {
+  border: 1px solid #f0d35f;
+  box-shadow: inset 0 0 0 2px #121819;
+}
+.mote-key {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50%;
+  background: var(--cyan);
+}
 
 .overview-wrap {
   position: absolute;
@@ -553,7 +570,9 @@ canvas:focus-visible {
   letter-spacing: 0.12em;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
 }
 
 .status-toast.visible {

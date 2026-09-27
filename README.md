@@ -60,6 +60,9 @@ Useful commands:
 
 ```bash
 npm run typecheck  # TypeScript 7 validation
+npm run lint       # Oxlint including type aware rules
+npm run format     # Format source and project files with Oxfmt
+npm run format:check # Verify formatting without changing files
 npm test           # Simulation, renderer, and hex-grid tests
 npm run build      # Validate and create the production bundle
 npm run preview    # Preview the production bundle

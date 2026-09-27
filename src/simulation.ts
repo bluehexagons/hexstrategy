@@ -146,9 +146,9 @@ function valueNoise(column: number, row: number, scale: number, seed: number): n
 
 function fractalNoise(column: number, row: number, seed: number): number {
   return (
-    valueNoise(column, row, 28, seed) * 0.55
-    + valueNoise(column, row, 13, seed + 1_019) * 0.3
-    + valueNoise(column, row, 6, seed + 7_919) * 0.15
+    valueNoise(column, row, 28, seed) * 0.55 +
+    valueNoise(column, row, 13, seed + 1_019) * 0.3 +
+    valueNoise(column, row, 6, seed + 7_919) * 0.15
   );
 }
 
@@ -163,7 +163,13 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function mutateValue(random: () => number, value: number, range: number, minimum: number, maximum: number): number {
+function mutateValue(
+  random: () => number,
+  value: number,
+  range: number,
+  minimum: number,
+  maximum: number,
+): number {
   return clamp(value + (random() - 0.5) * range, minimum, maximum);
 }
 
@@ -178,17 +184,20 @@ export function thingRotation(thing: Thing, progress: number): number {
   if (thing.animation === "spin-clockwise" || thing.animation === "spin-and-shrink-clockwise") {
     return progress * Math.PI * 2;
   }
-  if (thing.animation === "spin-counterclockwise" || thing.animation === "spin-and-shrink-counterclockwise") {
+  if (
+    thing.animation === "spin-counterclockwise" ||
+    thing.animation === "spin-and-shrink-counterclockwise"
+  ) {
     return progress * Math.PI * -2;
   }
   return 0;
 }
 
 export function thingScale(thing: Thing, progress: number): number {
-  return thing.animation === "shrink"
-    || thing.animation === "shrink-alt"
-    || thing.animation === "spin-and-shrink-clockwise"
-    || thing.animation === "spin-and-shrink-counterclockwise"
+  return thing.animation === "shrink" ||
+    thing.animation === "shrink-alt" ||
+    thing.animation === "spin-and-shrink-clockwise" ||
+    thing.animation === "spin-and-shrink-counterclockwise"
     ? 1 - progress * 0.42
     : 1;
 }
@@ -351,16 +360,18 @@ export class Simulation {
         const elevation = fractalNoise(column, row, this.seed + 17);
         const moisture = fractalNoise(column + 31, row - 19, this.seed + 9_973);
         const isOriginalVoid = key === "2,2";
-        const isProceduralVoid = elevation < 0.16
-          || (elevation > 0.84 && moisture < 0.38)
-          || (Math.abs(elevation - 0.49) < 0.012 && moisture < 0.24);
-        const terrain: Terrain = isOriginalVoid || isProceduralVoid
-          ? "void"
-          : elevation > 0.66
-            ? "ridge"
-            : moisture > 0.64
-              ? "basin"
-              : "field";
+        const isProceduralVoid =
+          elevation < 0.16 ||
+          (elevation > 0.84 && moisture < 0.38) ||
+          (Math.abs(elevation - 0.49) < 0.012 && moisture < 0.24);
+        const terrain: Terrain =
+          isOriginalVoid || isProceduralVoid
+            ? "void"
+            : elevation > 0.66
+              ? "ridge"
+              : moisture > 0.64
+                ? "basin"
+                : "field";
         const buildable = terrain !== "void";
         this.cells.set(key, {
           ...coordinate,
@@ -405,10 +416,13 @@ export class Simulation {
   private seedInitialEcology(): void {
     const center = { column: Math.floor(this.columns / 2), row: Math.floor(this.rows / 2) };
     for (const offset of INITIAL_OFFSETS) {
-      const cell = this.nearestBuildable({
-        column: center.column + offset.column,
-        row: center.row + offset.row,
-      }, 5);
+      const cell = this.nearestBuildable(
+        {
+          column: center.column + offset.column,
+          row: center.row + offset.row,
+        },
+        5,
+      );
       const thing = this.addThing(cell, 1);
       if (!thing) continue;
       thing.phase = "growing";
@@ -439,7 +453,7 @@ export class Simulation {
     this.tickThings();
     this.tickMotes();
 
-    for (const key of [...this.selectedKeys]) {
+    for (const key of this.selectedKeys) {
       const cell = this.cellAt(key);
       const readyThing = cell?.things.find(({ phase }) => phase === "ready");
       if (cell && readyThing) this.pickThing(cell, readyThing);
@@ -455,12 +469,15 @@ export class Simulation {
       const adjacent = neighbors(cell)
         .map((coordinate) => this.cellAt(coordinate))
         .filter((candidate): candidate is SimulationCell => Boolean(candidate?.buildable));
-      const neighboringEnergy = adjacent.length > 0
-        ? adjacent.reduce((total, candidate) => total + candidate.energy, 0) / adjacent.length
-        : cell.energy;
+      const neighboringEnergy =
+        adjacent.length > 0
+          ? adjacent.reduce((total, candidate) => total + candidate.energy, 0) / adjacent.length
+          : cell.energy;
       const ambient = cell.moisture * 0.003 + (cell.terrain === "basin" ? 0.002 : 0);
       const generated = cell.generator?.output ?? 0;
-      this.nextEnergy[cell.index] = clamp(cell.energy * 0.9 + neighboringEnergy * 0.075 + ambient + generated);
+      this.nextEnergy[cell.index] = clamp(
+        cell.energy * 0.9 + neighboringEnergy * 0.075 + ambient + generated,
+      );
     }
 
     for (const cell of this.cells.values()) cell.energy = this.nextEnergy[cell.index] ?? 0;
@@ -525,12 +542,17 @@ export class Simulation {
       destination.cell.energy = clamp(destination.cell.energy + mote.payload * 0.028);
 
       const growing = destination.cell.things.find(({ phase }) => phase === "growing");
-      if (growing) growing.progressTicks = Math.min(growing.growthTicks, growing.progressTicks + mote.payload * 0.18);
+      if (growing)
+        growing.progressTicks = Math.min(
+          growing.growthTicks,
+          growing.progressTicks + mote.payload * 0.18,
+        );
 
-      const canColonize = totalThings < MAX_WORLD_THINGS
-        && destination.cell.things.length === 0
-        && mote.age > 8
-        && destination.cell.energy > 0.14;
+      const canColonize =
+        totalThings < MAX_WORLD_THINGS &&
+        destination.cell.things.length === 0 &&
+        mote.age > 8 &&
+        destination.cell.energy > 0.14;
       if (canColonize && this.random() < 0.012 + destination.cell.moisture * 0.012) {
         const thing = this.addThing(destination.cell, 1, {
           hue: mote.hue,
@@ -543,7 +565,9 @@ export class Simulation {
           totalThings += 1;
           this.motes.splice(index, 1);
           if (this.ticks % 8 === 0) {
-            this.log(`A mote colonized ${destination.cell.column + 1}.${destination.cell.row + 1}.`);
+            this.log(
+              `A mote colonized ${destination.cell.column + 1}.${destination.cell.row + 1}.`,
+            );
           }
         }
       }
@@ -556,7 +580,9 @@ export class Simulation {
   ): { readonly cell: SimulationCell; readonly direction: number } | null {
     const candidates = neighbors(cell)
       .map((coordinate, direction) => ({ cell: this.cellAt(coordinate), direction }))
-      .filter((candidate): candidate is { cell: SimulationCell; direction: number } => Boolean(candidate.cell?.buildable));
+      .filter((candidate): candidate is { cell: SimulationCell; direction: number } =>
+        Boolean(candidate.cell?.buildable),
+      );
     let best: { readonly cell: SimulationCell; readonly direction: number } | null = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     for (const candidate of candidates) {
@@ -597,12 +623,14 @@ export class Simulation {
     if (shouldSpread) {
       const openNeighbors = neighbors(cell)
         .map((coordinate) => this.cellAt(coordinate))
-        .filter((candidate): candidate is SimulationCell => Boolean(
-          candidate?.buildable && candidate.things.length === 0,
-        ));
+        .filter((candidate): candidate is SimulationCell =>
+          Boolean(candidate?.buildable && candidate.things.length === 0),
+        );
       const target = openNeighbors[Math.floor(this.random() * openNeighbors.length)];
       if (target && this.addThing(target, thing.generation + 1, thing.genome, thing.shape)) {
-        this.log(`Generation ${thing.generation + 1} echoed into ${target.column + 1}.${target.row + 1}.`);
+        this.log(
+          `Generation ${thing.generation + 1} echoed into ${target.column + 1}.${target.row + 1}.`,
+        );
       }
     }
   }
@@ -701,11 +729,22 @@ export class Simulation {
     return points;
   }
 
-  private nearestBuildable(coordinate: HexCoordinate, maximumRadius: number): SimulationCell | undefined {
+  private nearestBuildable(
+    coordinate: HexCoordinate,
+    maximumRadius: number,
+  ): SimulationCell | undefined {
     for (let radius = 0; radius <= maximumRadius; radius += 1) {
       for (let row = coordinate.row - radius; row <= coordinate.row + radius; row += 1) {
-        for (let column = coordinate.column - radius; column <= coordinate.column + radius; column += 1) {
-          if (Math.max(Math.abs(column - coordinate.column), Math.abs(row - coordinate.row)) !== radius) continue;
+        for (
+          let column = coordinate.column - radius;
+          column <= coordinate.column + radius;
+          column += 1
+        ) {
+          if (
+            Math.max(Math.abs(column - coordinate.column), Math.abs(row - coordinate.row)) !==
+            radius
+          )
+            continue;
           const cell = this.cellAt({ column, row });
           if (cell?.buildable) return cell;
         }

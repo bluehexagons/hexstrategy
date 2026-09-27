@@ -24,9 +24,12 @@ describe("Simulation", () => {
     expect(first.cells).toHaveLength(MAP_COLUMNS * MAP_ROWS);
     expect(first.cells.size).toBeGreaterThan(6_000);
     expect(first.cellAt("2,2")?.buildable).toBe(false);
-    expect(new Set([...first.cells.values()].map(({ terrain }) => terrain)).size).toBeGreaterThan(1);
-    expect([...first.cells.values()].map(({ terrain }) => terrain))
-      .toEqual([...second.cells.values()].map(({ terrain }) => terrain));
+    expect(new Set([...first.cells.values()].map(({ terrain }) => terrain)).size).toBeGreaterThan(
+      1,
+    );
+    expect([...first.cells.values()].map(({ terrain }) => terrain)).toEqual(
+      [...second.cells.values()].map(({ terrain }) => terrain),
+    );
   });
 
   it("installs timed generators and an initial procedural ecology", () => {
@@ -114,13 +117,14 @@ describe("Simulation", () => {
 
   it("can echo a picked mutation into an open neighboring cell", () => {
     const simulation = new Simulation(() => 0, false, 77);
-    const cell = [...simulation.cells.values()].find((candidate) => (
-      candidate.buildable
-      && candidate.column > 4
-      && candidate.row > 4
-      && candidate.column < MAP_COLUMNS - 4
-      && candidate.row < MAP_ROWS - 4
-    ));
+    const cell = [...simulation.cells.values()].find(
+      (candidate) =>
+        candidate.buildable &&
+        candidate.column > 4 &&
+        candidate.row > 4 &&
+        candidate.column < MAP_COLUMNS - 4 &&
+        candidate.row < MAP_ROWS - 4,
+    );
     if (!cell) throw new Error("Expected an interior buildable cell");
     simulation.seedCells([cell.key]);
     simulation.selectCell(cell.key);
@@ -152,8 +156,9 @@ describe("Simulation", () => {
     const simulation = new Simulation(undefined, true, 91_117);
     const source = [...simulation.cells.values()].find(({ generator }) => generator !== null);
     if (!source) throw new Error("Expected a generator");
-    const neighbor = buildableCells(simulation, simulation.cells.size)
-      .find((candidate) => Math.abs(candidate.row - source.row) <= 1 && candidate.key !== source.key);
+    const neighbor = buildableCells(simulation, simulation.cells.size).find(
+      (candidate) => Math.abs(candidate.row - source.row) <= 1 && candidate.key !== source.key,
+    );
     if (!neighbor) throw new Error("Expected a neighboring cell");
     const initialEnergy = neighbor.energy;
 
