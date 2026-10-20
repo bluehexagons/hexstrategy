@@ -52,7 +52,7 @@ Factory production, enemies, collision handling, and pathfinding were partial or
 The demo has no runtime dependencies. It uses the TypeScript 7 compiler, Vite, Canvas 2D, and Vitest.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -60,6 +60,7 @@ Useful commands:
 
 ```bash
 npm run typecheck  # TypeScript 7 validation
+npm run check      # TypeScript, lint, and formatting checks
 npm run lint       # Oxlint including type aware rules
 npm run format     # Format source and project files with Oxfmt
 npm run format:check # Verify formatting without changing files
@@ -71,3 +72,20 @@ npm run preview    # Preview the production bundle
 The application is organized around a seeded, testable simulation in `src/simulation.ts`, coordinate helpers in `src/hex.ts`, a high-DPI Canvas renderer with viewport culling and overview rendering in `src/renderer.ts`, and DOM/input orchestration in `src/main.ts`.
 
 Pushes to `main` are tested, built, and deployed to GitHub Pages by GitHub Actions.
+
+Basaltwater on Debian is the reference development environment; ordinary Node.js
+development also works on other systems. Node 24 is selected by `.nvmrc` and CI.
+Use `nvm use`, or `basaltw node exec -- npm run check` on Basaltwater, without
+changing the host's default runtime. Run `npm test` and `npm run build` as well
+before submitting changes.
+
+For an authorized HTTPS preview on a phone or another device, follow the shared
+`basaltwater-web-gateway` skill and run:
+
+```sh
+basaltwater-web preview start hexstrategy --project .
+```
+
+This keeps the Vite upstream on loopback. Without Basaltwater, use the native
+development/preview commands and arrange trusted HTTPS separately when needed.
+Production asset URLs are relative, so `dist/` also works under a hosting subpath.
