@@ -74,7 +74,7 @@ The application is organized around a seeded, testable simulation in `src/simula
 Pushes to `main` are tested, built, and deployed to GitHub Pages by GitHub Actions.
 
 Basaltwater on Debian is the reference development environment; ordinary Node.js
-development also works on other systems. Node 24 is selected by `.nvmrc` and CI.
+development also works on other systems. Node.js 24.22.1+ within 24.x (LTS) or 26.12.1+ within 26.x (Current) is supported; `.nvmrc` selects Node 24.22.1 for development and CI.
 Use `nvm use`, or `basaltw node exec -- npm run check` on Basaltwater, without
 changing the host's default runtime. Run `npm test` and `npm run build` as well
 before submitting changes.
